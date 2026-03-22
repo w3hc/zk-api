@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  zk-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - KMS_URL=https://your-kms.example.com/release
+      # ML-KEM keys - generate with: pnpm ts-node scripts/generate-admin-keypair.ts
+      - ADMIN_MLKEM_PUBLIC_KEY=${ADMIN_MLKEM_PUBLIC_KEY}
+      - ADMIN_MLKEM_PRIVATE_KEY=${ADMIN_MLKEM_PRIVATE_KEY}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    restart: unless-stopped

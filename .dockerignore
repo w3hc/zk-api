@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+.git
+.github
+*.md
+.env
+.DS_Store
+test
