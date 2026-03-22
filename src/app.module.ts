@@ -10,6 +10,7 @@ import { HealthController } from './health/health.controller';
 import { validateEnvironment } from './config/env.validation';
 import { SecretModule } from './secret/secret.module';
 import { AuthModule } from './auth/auth.module';
+import { ZkApiModule } from './zk-api/zk-api.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { AuthModule } from './auth/auth.module';
     ]),
     AuthModule,
     SecretModule,
+    ZkApiModule,
   ],
   controllers: [AppController, AttestationController, HealthController],
   providers: [AppService, SecretsService, TeePlatformService],

@@ -1,5 +1,12 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsUrl, validateSync } from 'class-validator';
+import {
+  IsEnum,
+  IsUrl,
+  IsString,
+  IsOptional,
+  IsEthereumAddress,
+  validateSync,
+} from 'class-validator';
 
 /**
  * Environment configuration schema.
@@ -11,6 +18,22 @@ export class EnvironmentVariables {
 
   @IsUrl({ require_tld: false })
   KMS_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  ANTHROPIC_API_KEY?: string;
+
+  @IsOptional()
+  @IsEthereumAddress()
+  ZK_CONTRACT_ADDRESS?: string;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  ANVIL_RPC_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  ANVIL_PRIVATE_KEY?: string;
 }
 
 /**
