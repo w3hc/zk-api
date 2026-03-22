@@ -6,6 +6,7 @@ import { ProofVerifierService } from './proof-verifier.service';
 import { EthRateOracleService } from './eth-rate-oracle.service';
 import { RefundSignerService } from './refund-signer.service';
 import { BlockchainService } from './blockchain.service';
+import { ProofGenService } from './proof-gen.service';
 
 @Module({
   controllers: [ZkApiController],
@@ -13,10 +14,11 @@ import { BlockchainService } from './blockchain.service';
     ZkApiService,
     NullifierStoreService,
     ProofVerifierService,
+    ProofGenService,
     EthRateOracleService,
     RefundSignerService,
     BlockchainService,
   ],
-  exports: [ZkApiService],
+  exports: [ZkApiService, ProofGenService],
 })
 export class ZkApiModule {}

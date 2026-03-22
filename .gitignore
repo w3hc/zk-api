@@ -56,6 +56,8 @@ tmp/
 chest.json
 # Circom build artifacts
 circuits/build/
+circuits/*_test.circom
+circuits/*.sym
 
 # Foundry artifacts
 contracts/cache/

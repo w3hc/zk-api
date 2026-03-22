@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { ZkApiService } from './zk-api.service';
 import { NullifierStoreService } from './nullifier-store.service';
 import { ProofVerifierService } from './proof-verifier.service';
+import { ProofGenService } from './proof-gen.service';
 import { EthRateOracleService } from './eth-rate-oracle.service';
 import { RefundSignerService } from './refund-signer.service';
 import { BlockchainService } from './blockchain.service';
@@ -21,6 +22,7 @@ describe('ZkApiService', () => {
         ZkApiService,
         NullifierStoreService,
         ProofVerifierService,
+        ProofGenService,
         EthRateOracleService,
         RefundSignerService,
         {
