@@ -1,177 +1,308 @@
-# ZK API Overview
+# ZK API System Overview
 
-## Purpose
+## Introduction
 
-ZK API is a confidential computing API framework that provides cryptographic guarantees about data privacy during server-side processing. Built on NestJS, it enables developers to build APIs where even the infrastructure operator cannot access user data—a trust model verified through hardware attestation rather than organizational policy.
+ZK API is a privacy-preserving system for accessing Claude AI models anonymously using Zero-Knowledge proofs and Rate-Limit Nullifiers (RLN). The system enables users to deposit ETH once and make thousands of untraceable API requests without revealing their identity or linking requests together.
 
-## Core Concepts
+**Key Innovation**: Combines ZK-SNARKs (Groth16) for proving solvency with Rate-Limit Nullifiers for preventing double-spending, all while maintaining complete privacy.
 
-### Trusted Execution Environments (TEEs)
+## Architecture
 
-ZK API leverages hardware-based isolation provided by modern CPU security features. The application executes within a cryptographically sealed enclave where:
+The system consists of three main layers:
 
-- **Memory isolation**: The host OS and operator cannot read enclave memory
-- **Encrypted I/O**: TLS termination occurs inside the enclave, preventing plaintext exposure
-- **Remote attestation**: Clients receive cryptographic proof of the exact code executing
-- **Sealed secrets**: Cryptographic keys and sensitive configuration are only released after attestation verification
+### 1. Smart Contract Layer (Ethereum)
 
-### Supported TEE Platforms
+**Contract**: [`ZkApiCredits.sol`](../contracts/src/ZkApiCredits.sol)
 
-- **AMD SEV-SNP**: Secure Encrypted Virtualization with memory integrity
-- **Intel TDX**: Trust Domain Extensions for VM-level isolation
-- **AWS Nitro**: Amazon's proprietary enclave technology
-- **Phala Network**: Decentralized TEE infrastructure on Intel TDX
+The smart contract manages the economic guarantees and serves as the source of truth for:
 
-### Architecture Philosophy
+- **Deposits & Withdrawals**: Users deposit ETH along with an identity commitment (Poseidon hash of their secret key)
+- **Merkle Tree**: Maintains an on-chain Merkle tree of all identity commitments (anonymity set)
+- **Dual Staking Mechanism**:
+  - 50% RLN stake: Claimable by anyone who proves double-spending
+  - 50% Policy stake: Burnable by operator for ToS violations (not claimable to prevent false accusations)
+- **Refund Redemption**: Users can redeem server-signed refund tickets on-chain
+- **Slashing**: Automatic punishment when someone proves you reused a ticket
 
-ZK API follows a **zero-trust operator model**. Traditional API security relies on trusting the infrastructure provider not to access data. ZK API inverts this: the operator is explicitly untrusted, and hardware isolation enforces confidentiality. Clients verify the running code through attestation before transmitting sensitive data.
+**Key Functions**:
+- `deposit(bytes32 identityCommitment)`: Deposit ETH with anonymous identity
+- `withdraw(address recipient, uint256 amount)`: Withdraw available balance
+- `redeemRefund(...)`: Redeem server-signed refund ticket
+- `slashDoubleSpend(...)`: Submit proof of double-spending to claim RLN stake
+- `slashPolicy(...)`: Operator burns policy stake for ToS violations
+
+### 2. Zero-Knowledge Circuit Layer
+
+**Main Circuit**: [`circuits/api_credit_proof.circom`](../circuits/api_credit_proof.circom)
+
+The ZK circuit proves four critical properties in zero-knowledge:
+
+1. **Membership**: User's identity commitment is in the Merkle tree
+2. **Refund Validity**: All accumulated refund tickets have valid EdDSA signatures from the operator
+3. **Solvency**: Current balance ≥ maxCost of this request
+   ```
+   balance = initial_deposit + sum(refund_tickets) - sum(spent)
+   ```
+4. **RLN Signal**: Generates unique nullifier and signal for double-spend prevention
+   ```
+   a = Poseidon(secretKey, ticketIndex)
+   nullifier = Poseidon(a)
+   x = Poseidon(message)
+   y = secretKey + a * x
+   ```
+
+**Circuit Parameters**:
+- Merkle tree depth: 20 (supports up to ~1M depositors)
+- Max refund tickets: 10 (can be increased)
+- Proof system: Groth16 (fast verification, ~200-300 bytes proof size)
+- Hash function: Poseidon (ZK-friendly)
+
+**Other Circuits**:
+- `api_credit_proof_simple.circom`: Simplified version for testing
+- `api_credit_proof_test.circom`: Test harness
+
+### 3. Backend Services Layer (NestJS)
+
+The backend orchestrates proof verification, API execution, and refund signing:
+
+| Service | File | Purpose |
+|---------|------|---------|
+| **ZkApiService** | [`zk-api.service.ts`](../src/zk-api/zk-api.service.ts) | Main request orchestrator |
+| **ProofVerifierService** | [`proof-verifier.service.ts`](../src/zk-api/proof-verifier.service.ts) | Groth16 proof verification using snarkjs |
+| **NullifierStoreService** | [`nullifier-store.service.ts`](../src/zk-api/nullifier-store.service.ts) | In-memory store for used nullifiers (double-spend prevention) |
+| **RefundSignerService** | [`refund-signer.service.ts`](../src/zk-api/refund-signer.service.ts) | EdDSA signing of refund tickets |
+| **EthRateOracleService** | [`eth-rate-oracle.service.ts`](../src/zk-api/eth-rate-oracle.service.ts) | ETH/USD price from Kraken API |
+| **BlockchainService** | [`blockchain.service.ts`](../src/zk-api/blockchain.service.ts) | Ethereum contract interactions (read-only in current version) |
+| **MerkleTreeService** | [`merkle-tree.service.ts`](../src/zk-api/merkle-tree.service.ts) | Off-chain Merkle tree sync with contract |
+
+**Additional Services** (for broader app functionality):
+- **SiweService**: Sign-In with Ethereum authentication
+- **MlkemEncryptionService**: Post-quantum encryption (ML-KEM)
+- **TeePlatformService**: Trusted Execution Environment attestation
+- **SecretService**: Secret storage for TEE environments
+
+## Request Flow
+
+### One-Time Setup
+
+1. User generates random secret key `k`
+2. Computes identity commitment: `idCommitment = Poseidon(k)`
+3. Deposits ETH to contract with `idCommitment`
+4. User is now part of the anonymity set
+
+### Making an Anonymous Request
+
+```
+┌─────────┐                ┌─────────────┐                ┌──────────┐
+│  User   │                │  Backend    │                │ Contract │
+└────┬────┘                └──────┬──────┘                └────┬─────┘
+     │                            │                            │
+     │ 1. Generate ZK proof       │                            │
+     │    - Merkle proof          │                            │
+     │    - Previous refunds      │                            │
+     │    - RLN signal            │                            │
+     │                            │                            │
+     │ 2. POST /zk-api/request    │                            │
+     │    {proof, nullifier,      │                            │
+     │     signal, maxCost}       │                            │
+     ├───────────────────────────>│                            │
+     │                            │                            │
+     │                            │ 3. Verify proof            │
+     │                            │    (Groth16)               │
+     │                            │                            │
+     │                            │ 4. Check nullifier         │
+     │                            │    not used                │
+     │                            │                            │
+     │                            │ 5. Store nullifier         │
+     │                            │                            │
+     │                            │ 6. Call Claude API         │
+     │                            │                            │
+     │                            │ 7. Calculate actual        │
+     │                            │    cost (tokens * price)   │
+     │                            │                            │
+     │                            │ 8. Sign refund ticket      │
+     │                            │    (EdDSA)                 │
+     │                            │                            │
+     │ 9. Response + refund       │                            │
+     │    ticket                  │                            │
+     │<───────────────────────────┤                            │
+     │                            │                            │
+     │ 10. Accumulate tickets     │                            │
+     │     for next request       │                            │
+     │                            │                            │
+     │ ... many requests ...      │                            │
+     │                            │                            │
+     │ 11. Redeem refunds         │                            │
+     │     on-chain               │                            │
+     ├────────────────────────────┼───────────────────────────>│
+     │                            │                            │
+     │                            │                            │ 12. Verify EdDSA
+     │                            │                            │     signature
+     │                            │                            │
+     │                            │                            │ 13. Credit balance
+     │                            │                            │
+     │ 14. ETH sent to recipient  │                            │
+     │<───────────────────────────┼────────────────────────────┤
+```
+
+### Key Privacy Properties
+
+1. **Identity Privacy**: Requests can't be linked to the on-chain deposit
+   - ZK proof proves membership without revealing which leaf
+   - Merkle tree provides k-anonymity among all depositors
+
+2. **Request Unlinkability**: Requests can't be linked to each other
+   - Each request uses a unique nullifier derived from ticket index
+   - Server sees: nullifier₁, nullifier₂, ... (no way to link them)
+
+3. **Balance Privacy**: Actual balance is hidden
+   - ZK proof only reveals: `balance >= maxCost`
+   - Server doesn't know how much you actually have
+
+4. **Double-Spend Prevention**: RLN ensures tickets can't be reused
+   - Each ticket has an index
+   - Reusing same index with different message reveals secret key
+   - Anyone can compute: `k = (y₁×x₂ - y₂×x₁) / (x₂ - x₁)`
+
+## Cryptographic Primitives
+
+### Rate-Limit Nullifiers (RLN)
+
+RLN is a cryptographic primitive that allows one-time use of tickets while preserving privacy:
+
+**Signal Generation**:
+```
+a = Poseidon(secretKey, ticketIndex)
+nullifier = Poseidon(a)
+x = Poseidon(message)
+y = secretKey + a × x
+```
+
+**Properties**:
+- Different messages with same ticket → reveals secret key
+- Server can verify: `nullifier` hasn't been seen before
+- Server stores: `(nullifier, x, y)` for double-spend detection
+
+**Double-Spend Detection**:
+If someone submits two requests with same `ticketIndex`:
+```
+Signal 1: y₁ = k + a×x₁
+Signal 2: y₂ = k + a×x₂
+
+Solve for k:
+k = (y₁×x₂ - y₂×x₁) / (x₂ - x₁)
+```
+
+Anyone can compute the secret key and submit a slashing transaction to claim the RLN stake.
+
+### EdDSA Refund Tickets
+
+The server signs refund tickets with EdDSA (verifiable in ZK circuits):
+
+**Ticket Structure**:
+```typescript
+{
+  nullifier: string,      // From this request
+  value: bigint,         // Refund amount in wei
+  timestamp: number,     // Unix timestamp
+  signature: {          // EdDSA signature
+    R8: [string, string],
+    S: string
+  }
+}
+```
+
+**In-Circuit Verification**: The ZK circuit verifies EdDSA signatures on all accumulated refund tickets, ensuring the server actually authorized them.
+
+### Poseidon Hash
+
+- **Purpose**: ZK-friendly hash function (much cheaper in circuits than SHA256)
+- **Usage**: Identity commitments, nullifiers, RLN signals
+- **Parameters**: Rate = 2, capacity = 1 (standard configuration)
 
 ## Security Model
 
 ### Threat Model
 
-**Protected against:**
-- Malicious host operator reading memory
-- Network eavesdropping (TLS in enclave)
-- Log-based data exfiltration
-- Stack trace information leakage
+**Trusted**:
+- Smart contract (after audit)
+- ZK circuit (after trusted setup ceremony)
+- Cryptographic primitives (Poseidon, EdDSA, Groth16)
 
-**NOT protected against:**
-- Side-channel attacks (timing, cache) - See [docs/SIDE_CHANNEL_ATTACKS.md](docs/SIDE_CHANNEL_ATTACKS.md) for mitigations
-- Physical access to hardware
-- Compromised TEE firmware
-- Application logic bugs
+**Semi-Trusted**:
+- Server operator (can censor but can't steal funds or break privacy)
 
-### Trust Assumptions
+**Adversaries**:
+- Network observers (ISP, server operator)
+- Other users
+- Blockchain analysts
 
-**Trusted Components:**
-1. TEE hardware vendor (AMD/Intel/AWS)
-2. Application code (verifiable via attestation)
-3. Key Management Service (KMS) attestation verification logic
+### Attack Vectors & Mitigations
 
-**Explicitly Untrusted:**
-- Host operating system
-- Cloud provider operators
-- Network infrastructure between client and enclave
+| Attack | Mitigation |
+|--------|-----------|
+| **Double-spending** | RLN reveals secret key → automatic slashing |
+| **Proof forgery** | Groth16 soundness guarantee (computationally infeasible) |
+| **Replay attacks** | Nullifiers stored server-side, checked on-chain for refunds |
+| **Balance draining** | ZK proof ensures balance ≥ maxCost before request |
+| **Server refusing refunds** | Overpayment is minor per request, accumulate and redeem on-chain |
+| **Sybil attacks** | Each deposit requires real ETH stake |
+| **ToS violations** | Policy stake can be burned (separate from RLN stake) |
 
-## Key Features
+### Privacy Limitations
 
-### Attestation & Verification
-The `/chest/attestation` endpoint exposes cryptographic evidence of the running code. Clients verify this evidence against known measurements before transmitting sensitive data. This creates a trustless verification model where code identity is proven mathematically rather than asserted. The attestation proves that:
+1. **Network-level privacy**: Use Tor/VPN to hide IP address
+2. **Timing correlation**: Space out requests to prevent timing analysis
+3. **Anonymity set**: Privacy scales with number of depositors
+4. **Message content**: Don't include personally identifiable information in prompts
 
-1. **Code Integrity**: The exact code running in the TEE (via measurement/hash)
-2. **TEE Authenticity**: The service is actually running in a genuine TEE
-3. **No Privileged Access**: Even the operator cannot access user secrets
+## Cost Economics
 
-Users can request attestation at any time to verify the service does what it claims - it cannot access their data.
+### User Costs
 
-### Quantum-Resistant Encryption
-ML-KEM-1024 (NIST FIPS 203) provides post-quantum cryptographic protection for client-side encryption. Clients encrypt secrets before transmission using the admin's public key exposed in attestation. The TEE decrypts with a private key that never leaves enclave memory. This ensures:
+1. **Initial Deposit**: One-time gas cost (~$5-20 depending on L1 gas price)
+2. **API Request**: Maximal overpayment per request (~1-5% due to price fluctuations)
+3. **Refund Redemption**: Gas cost to redeem accumulated refunds (~$3-10)
 
-1. **Quantum resistance**: Protected against Shor's algorithm (breaks RSA/ECDSA)
-2. **Admin-proof encryption**: Private key only in TEE memory, never on disk/logs
-3. **Client verification**: ML-KEM public key comes with attestation proof
-4. **End-to-end security**: Plaintext never leaves client until inside TEE
+### Efficiency
 
-See [docs/CLIENT_ENCRYPTION.md](CLIENT_ENCRYPTION.md) for implementation guide.
+- **Proof generation**: ~2-5 seconds (client-side)
+- **Proof verification**: ~10-20ms (server-side)
+- **Proof size**: ~200-300 bytes (Groth16)
+- **Gas cost per deposit**: ~150k gas
+- **Gas cost per refund redemption**: ~80k gas
 
-### Web3 Authentication
-Sign-In with Ethereum (SIWE) provides decentralized authentication without traditional credentials. Users prove identity through cryptographic signatures, eliminating password management and centralized identity providers. Owner-based access control ensures only authorized Ethereum addresses can retrieve secrets. See [docs/SIWE.md](docs/SIWE.md) for implementation details.
+## Current Status
 
-### Confidentiality Controls
-- **Sanitized logging**: Structured log filtering prevents accidental data leakage
-- **TLS-in-enclave**: Network plaintext never touches host infrastructure
-- **KMS integration**: Secrets provisioned post-attestation, not at deploy time
-- **Input validation**: Schema-based request validation prevents injection attacks
-- **ML-KEM encryption**: Quantum-resistant client-side encryption with TEE-only decryption
+### ✅ Completed
 
-### Operational Features
-- Rate limiting and DoS protection
-- Health check endpoints for orchestration systems
-- Swagger/OpenAPI documentation generation
-- Platform-agnostic TEE detection at runtime
-- Keypair generation utilities for ML-KEM
-- Comprehensive API reference documentation
+- [x] ZK circuit design (Circom)
+- [x] Smart contract (Solidity)
+- [x] Backend services (NestJS)
+- [x] API endpoints
+- [x] Unit tests (267 tests passing)
+- [x] ETH/USD oracle integration
+- [x] Refund ticket signing (EdDSA)
+- [x] RLN cryptographic primitives
+- [x] Merkle tree service
+- [x] Anthropic SDK integration
 
-## System Architecture
+### ⚠️ TODO for Production
 
-```
-┌─────────────────────────────────────────────────┐
-│                TEE Enclave Boundary             │
-│                                                 │
-│  ┌─────────────────────────────────────────┐   │
-│  │       NestJS Application Layer          │   │
-│  │  ┌──────────────┐  ┌─────────────────┐ │   │
-│  │  │  Controllers │  │  Business Logic │ │   │
-│  │  └──────────────┘  └─────────────────┘ │   │
-│  └─────────────────────────────────────────┘   │
-│                      ↓                          │
-│  ┌─────────────────────────────────────────┐   │
-│  │          Security Services              │   │
-│  │  • Attestation Generation               │   │
-│  │  • SIWE Authentication                  │   │
-│  │  • TLS Termination                      │   │
-│  │  • Secrets Management                   │   │
-│  └─────────────────────────────────────────┘   │
-│                      ↓                          │
-│  ┌─────────────────────────────────────────┐   │
-│  │         Hardware Isolation              │   │
-│  │  • Encrypted Memory                     │   │
-│  │  • Attestation Primitives               │   │
-│  └─────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────┘
-                       ↕ (encrypted channel)
-              ┌────────────────────┐
-              │   External KMS     │
-              │ (attestation gate) │
-              └────────────────────┘
-```
+- [ ] Complete trusted setup ceremony (Powers of Tau)
+- [ ] Replace in-memory nullifier store with Redis/PostgreSQL
+- [ ] Implement HSM/KMS for EdDSA signing key
+- [ ] Add event listener for on-chain Deposit events
+- [ ] Deploy contract to mainnet
+- [ ] Security audit (contract + circuit + backend)
+- [ ] Rate limiting per IP/nullifier
+- [ ] Gas optimization
+- [ ] MEV protection for slashing transactions
 
-### Data Flow
+## References
 
-1. **Client Request**: TLS connection established directly with enclave
-2. **Attestation**: Client verifies `/chest/attestation` endpoint before sending sensitive data
-3. **Authentication**: SIWE signature validated against Ethereum address
-4. **Processing**: Business logic executes within hardware-isolated memory
-5. **Response**: Encrypted response sent through TLS tunnel
-
-### Component Layers
-
-**Application Layer**: Standard NestJS controllers and services, with TEE-awareness for attestation and secrets handling
-
-**Security Layer**: Enforces confidentiality guarantees through sanitized logging, header-based authentication, and KMS integration
-
-**Hardware Layer**: Platform-specific TEE implementations (SEV-SNP, TDX, Nitro) provide memory encryption and attestation
-
-## Use Cases
-
-### Private Data APIs
-APIs processing personal data (health records, financial information) where regulatory compliance requires operator-proof confidentiality. Attestation provides auditable evidence of data handling.
-
-### Web3 Oracles
-Trusted computation for blockchain applications requiring off-chain data or complex calculations. TEEs prevent oracle manipulation by infrastructure providers.
-
-### Multi-party Computation
-Neutral computation zones where multiple parties contribute data but no single party (including the operator) can access inputs. Attestation proves fair execution.
-
-### Confidential AI Inference
-ML model inference where both the model and user inputs must remain confidential. TEEs prevent model extraction and input logging.
-
-## Getting Started
-
-This overview covers architectural concepts and security properties. For practical implementation:
-
-- **Setup & Deployment**: See [README.md](../README.md) for installation and development setup
-- **TEE Platform Configuration**: See [docs/TEE_SETUP.md](TEE_SETUP.md) for platform-specific deployment
-- **Authentication Integration**: See [docs/SIWE.md](SIWE.md) for Web3 authentication
-- **Security Considerations**: See [docs/SIDE_CHANNEL_ATTACKS.md](SIDE_CHANNEL_ATTACKS.md) for threat modeling
-
-## Technical Stack
-
-- **Runtime**: Node.js 20+ with NestJS 11
-- **Language**: TypeScript 5.7
-- **Package Manager**: pnpm
-- **TEE Platforms**: AMD SEV-SNP, Intel TDX, AWS Nitro, Phala Network
-- **Authentication**: SIWE (Sign-In with Ethereum)
-- **API Documentation**: Swagger/OpenAPI
-- **License**: GPL v3
+- [ZK API Usage Credits: LLMs and Beyond](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) - Original proposal by Davide Crapis & Vitalik Buterin
+- [Rate-Limit Nullifiers](https://rate-limiting-nullifier.github.io/rln-docs/) - RLN documentation
+- [Circom Documentation](https://docs.circom.io/) - Circuit development
+- [SnarkJS](https://github.com/iden3/snarkjs) - ZK proof generation and verification
+- [Poseidon Hash](https://eprint.iacr.org/2019/458.pdf) - ZK-friendly hash function

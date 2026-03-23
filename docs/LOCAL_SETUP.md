@@ -22,10 +22,10 @@ This guide covers running ZK API locally on your machine without Docker, ideal f
 Create your local environment file:
 
 ```bash
-cp .env.template .env
+cp .env.template .env.local
 ```
 
-Edit `.env` and configure:
+Edit `.env.local` and configure:
 
 ```bash
 NODE_ENV=development

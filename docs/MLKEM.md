@@ -419,7 +419,7 @@ This will output:
 ```
 ✅ Keypair generated successfully!
 
-📋 Add these to your .env file:
+📋 Add these to your .env.local file:
 
 ADMIN_MLKEM_PUBLIC_KEY=ZLVMNpXCmEp7vhcylKzGXcx8wVEcaQKI...
 ADMIN_MLKEM_PRIVATE_KEY=82eI7sQLvGEut7Z4RvaF+Ju60Esj/AW/...
@@ -429,7 +429,7 @@ ADMIN_MLKEM_PRIVATE_KEY=82eI7sQLvGEut7Z4RvaF+Ju60Esj/AW/...
 
 #### Step 2: Configure Environment
 
-Create or update `.env`:
+Create or update `.env.local`:
 
 ```bash
 # ML-KEM-1024 Admin Keypair (quantum-resistant encryption)

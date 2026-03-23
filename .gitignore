@@ -54,6 +54,12 @@ secrets/
 temp/
 tmp/
 chest.json
-# Foundry (contracts folder has its own .gitignore)
+# Circom build artifacts
+circuits/build/
+circuits/*_test.circom
+circuits/*.sym
 
-# Foundry artifacts in contracts folder are handled by contracts/.gitignore
+# Foundry artifacts
+contracts/cache/
+contracts/out/
+contracts/broadcast/
