@@ -34,7 +34,7 @@ Mock TEE attestation - no real hardware security.
 pnpm install
 
 # Setup environment
-cp .env.template .env
+cp .env.template .env.local
 
 # Generate TLS certificates
 mkdir -p secrets
@@ -42,7 +42,7 @@ openssl req -x509 -newkey rsa:4096 -keyout secrets/tls.key -out secrets/tls.cert
 
 # Generate ML-KEM keypair
 pnpm ts-node scripts/generate-admin-keypair.ts
-# Copy the output keys to your .env file
+# Copy the output keys to your .env.local file
 
 # Start development server
 pnpm start:dev

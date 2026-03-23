@@ -53,7 +53,7 @@ The admin needs to generate and configure ML-KEM keys on the server:
 # On the TEE server
 pnpm ts-node scripts/generate-admin-keypair.ts
 
-# Add the output to .env file:
+# Add the output to .env.local file:
 # ADMIN_MLKEM_PUBLIC_KEY=...
 # ADMIN_MLKEM_PRIVATE_KEY=...
 
