@@ -55,3 +55,55 @@ export class ZkApiRequestDto {
   @IsOptional()
   model?: string;
 }
+
+export class RefundSignatureDto {
+  @ApiProperty({ description: 'EdDSA signature R8x component' })
+  @IsString()
+  @IsNotEmpty()
+  R8x: string;
+
+  @ApiProperty({ description: 'EdDSA signature R8y component' })
+  @IsString()
+  @IsNotEmpty()
+  R8y: string;
+
+  @ApiProperty({ description: 'EdDSA signature S component' })
+  @IsString()
+  @IsNotEmpty()
+  S: string;
+}
+
+export class RedeemRefundRequestDto {
+  @ApiProperty({ description: 'Identity commitment (Hash of secret key)' })
+  @IsString()
+  @IsNotEmpty()
+  idCommitment: string;
+
+  @ApiProperty({ description: 'Nullifier from the API request' })
+  @IsString()
+  @IsNotEmpty()
+  nullifier: string;
+
+  @ApiProperty({ description: 'Refund value in wei' })
+  @IsString()
+  @IsNotEmpty()
+  value: string;
+
+  @ApiProperty({ description: 'Timestamp when refund was issued' })
+  @IsNotEmpty()
+  timestamp: number;
+
+  @ApiProperty({
+    description: 'Server EdDSA signature on refund ticket',
+    type: RefundSignatureDto,
+  })
+  @IsObject()
+  @ValidateNested()
+  @Type(() => RefundSignatureDto)
+  signature: RefundSignatureDto;
+
+  @ApiProperty({ description: 'Recipient address for the refund' })
+  @IsString()
+  @IsNotEmpty()
+  recipient: string;
+}

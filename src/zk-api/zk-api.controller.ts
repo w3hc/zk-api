@@ -8,13 +8,19 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ZkApiService } from './zk-api.service';
-import { ZkApiRequestDto } from './dto/api-request.dto';
+import { ZkApiRequestDto, RedeemRefundRequestDto } from './dto/api-request.dto';
 import { ZkApiResponseDto } from './dto/api-response.dto';
+import { BlockchainService } from './blockchain.service';
+import { NullifierStoreService } from './nullifier-store.service';
 
 @ApiTags('zk-api')
 @Controller('zk-api')
 export class ZkApiController {
-  constructor(private readonly zkApiService: ZkApiService) {}
+  constructor(
+    private readonly zkApiService: ZkApiService,
+    private readonly blockchainService: BlockchainService,
+    private readonly nullifierStore: NullifierStoreService,
+  ) {}
 
   @Post('request')
   @HttpCode(HttpStatus.OK)
@@ -62,5 +68,80 @@ export class ZkApiController {
   })
   getServerPublicKey(): { x: string; y: string } {
     return this.zkApiService.getServerPublicKey();
+  }
+
+  @Post('redeem-refund')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Redeem a signed refund ticket',
+    description:
+      'Submit a signed refund ticket obtained from an API response to claim the refund on-chain. ' +
+      'The refund will be transferred to the specified recipient address.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Refund redeemed successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        transactionHash: {
+          type: 'string',
+          description: 'Transaction hash of the refund redemption',
+        },
+        message: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid refund ticket or signature',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Refund already redeemed or nullifier slashed',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Blockchain service not available',
+  })
+  async redeemRefund(
+    @Body() request: RedeemRefundRequestDto,
+  ): Promise<{ success: boolean; transactionHash: string; message: string }> {
+    if (!this.blockchainService.isAvailable()) {
+      throw new Error('Blockchain service not available');
+    }
+
+    // Check if already redeemed
+    const isRedeemed = await this.blockchainService.isRefundRedeemed(
+      request.nullifier,
+    );
+    if (isRedeemed) {
+      throw new Error('Refund already redeemed');
+    }
+
+    const txHash = await this.blockchainService.redeemRefund({
+      idCommitment: request.idCommitment,
+      nullifier: request.nullifier,
+      refundValue: request.value,
+      timestamp: request.timestamp,
+      signature: request.signature,
+      recipient: request.recipient,
+    });
+
+    // Track the redemption in our local store
+    this.nullifierStore.markRefundRedeemed(request.nullifier, {
+      idCommitment: request.idCommitment,
+      value: request.value,
+      timestamp: request.timestamp,
+      recipient: request.recipient,
+      txHash,
+    });
+
+    return {
+      success: true,
+      transactionHash: txHash,
+      message: `Refund of ${request.value} wei redeemed successfully`,
+    };
   }
 }

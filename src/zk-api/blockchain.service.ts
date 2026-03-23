@@ -277,4 +277,79 @@ export class BlockchainService implements OnModuleInit {
   isAvailable(): boolean {
     return this.contract !== null && this.provider !== null;
   }
+
+  /**
+   * Redeem a signed refund ticket on-chain
+   */
+  async redeemRefund(params: {
+    idCommitment: string;
+    nullifier: string;
+    refundValue: string;
+    timestamp: number;
+    signature: {
+      R8x: string;
+      R8y: string;
+      S: string;
+    };
+    recipient: string;
+  }): Promise<string> {
+    if (!this.contract || !this.wallet) {
+      throw new Error(
+        'Blockchain service not initialized or wallet not available',
+      );
+    }
+
+    try {
+      this.logger.log(
+        `Redeeming refund for nullifier ${params.nullifier}, amount: ${params.refundValue} wei`,
+      );
+
+      const tx = (await this.contract.redeemRefund(
+        params.idCommitment,
+        params.nullifier,
+        params.refundValue,
+        params.timestamp,
+        params.signature,
+        params.recipient,
+      )) as ethers.ContractTransactionResponse;
+
+      this.logger.log(`Refund redemption transaction submitted: ${tx.hash}`);
+
+      const receipt = await tx.wait();
+      this.logger.log(
+        `Refund redemption confirmed in block ${receipt?.blockNumber}`,
+      );
+
+      return tx.hash;
+    } catch (error) {
+      this.logger.error('Failed to redeem refund', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if a refund has already been redeemed
+   */
+  async isRefundRedeemed(nullifier: string): Promise<boolean> {
+    if (!this.contract) {
+      throw new Error('Blockchain service not initialized');
+    }
+
+    return (await this.contract.redeemedRefunds(nullifier)) as boolean;
+  }
+
+  /**
+   * Get server's EdDSA public key from contract
+   */
+  async getServerPublicKey(): Promise<{ x: string; y: string }> {
+    if (!this.contract) {
+      throw new Error('Blockchain service not initialized');
+    }
+
+    const pubKey = (await this.contract.serverPublicKey()) as {
+      x: string;
+      y: string;
+    };
+    return pubKey;
+  }
 }
