@@ -86,51 +86,7 @@ pnpm ts-node scripts/test-proof-verification.ts
 pnpm ts-node scripts/test-api-request.ts
 ```
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                      Client Side                        │
-│  ┌────────────┐   ┌────────────┐   ┌─────────────┐     │
-│  │ Secret Key │──▶│ ZK Prover  │──▶│ Proof + RLN │     │
-│  │ (circom)   │   │ (Groth16)  │   │ Signal      │     │
-│  └────────────┘   └────────────┘   └──────┬──────┘     │
-└─────────────────────────────────────────────┼──────────┘
-                                              │
-                                              │ HTTPS
-                                              ▼
-┌────────────────────────────────────────────────────────┐
-│              ZK API Server (NestJS)                    │
-│  ┌──────────────────────────────────────────────┐     │
-│  │ 1. Nullifier Check (Double-spend detection)  │     │
-│  └──────────────────────────────────────────────┘     │
-│  ┌──────────────────────────────────────────────┐     │
-│  │ 2. ZK Proof Verification (Groth16)           │     │
-│  └──────────────────────────────────────────────┘     │
-│  ┌──────────────────────────────────────────────┐     │
-│  │ 3. Execute Claude API Request                │     │
-│  └──────────────────────────────────────────────┘     │
-│  ┌──────────────────────────────────────────────┐     │
-│  │ 4. Issue Refund Ticket (EdDSA signature)     │     │
-│  └──────────────────────────────────────────────┘     │
-└────────────────────────────────────────────────────────┘
-                          │
-                          │ Web3 RPC
-                          ▼
-┌────────────────────────────────────────────────────────┐
-│         Ethereum Smart Contract                        │
-│  ┌──────────────────────────────────────────────┐     │
-│  │ ZkApiCredits.sol                             │     │
-│  │  • deposit()        - Add funds              │     │
-│  │  • withdraw()       - Reclaim funds          │     │
-│  │  • redeemRefund()   - Claim refunds          │     │
-│  │  • slashDoubleSpend() - Punish double-spend  │     │
-│  │  • Merkle Tree      - Anonymity set          │     │
-│  └──────────────────────────────────────────────┘     │
-└────────────────────────────────────────────────────────┘
-```
-
-## Protocol Flow
+## Flow
 
 ### 1. One-Time Setup
 
@@ -291,39 +247,11 @@ Your secret key `k` is revealed and anyone can claim your RLN stake.
 - **RLN Slashing**: Automatic punishment for double-spending (stake claimed by prover)
 - **Policy Slashing**: Server can burn policy stake for ToS violations (not claimed, to prevent false accusations)
 
-## Production Readiness
-
-### ✅ Completed
-
-- [x] ZK circuit design (Circom)
-- [x] Smart contract (Solidity)
-- [x] Backend services (NestJS)
-- [x] API endpoints
-- [x] Unit tests (267 tests passing)
-- [x] ETH/USD oracle integration
-- [x] Refund ticket signing (EdDSA)
-- [x] RLN cryptographic primitives
-- [x] Merkle tree service
-- [x] Anthropic SDK integration
-
-### ⚠️ TODO for Production
-
-- [ ] Complete trusted setup ceremony
-- [ ] Replace in-memory nullifier store with Redis/PostgreSQL
-- [ ] Implement HSM/KMS for EdDSA signing key
-- [ ] Add event listener for on-chain Deposit events
-- [ ] Deploy contract to mainnet
-- [ ] Security audit (contract + circuit + backend)
-- [ ] Rate limiting per IP/nullifier
-- [ ] Gas optimization
-- [ ] MEV protection for slashing transactions
-
 ## Credits
 
-Based on the **Wulong API template** by W3HC: https://github.com/w3hc/wulong
+Inspired by the Ethresear.ch proposal [ZK API Usage Credits: LLMs and Beyond](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) by Davide Crapis & Vitalik Buterin
 
-Inspired by the Ethresear.ch proposal:
-- [ZK API Usage Credits: LLMs and Beyond](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) by Davide Crapis & Vitalik Buterin
+Based on the **Wulong API template** by W3HC: https://github.com/w3hc/wulong
 
 ## License
 
