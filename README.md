@@ -1,8 +1,8 @@
 # ZK API
 
 [![NestJS](https://img.shields.io/badge/NestJS-v11-E0234E?logo=nestjs)](https://nestjs.com/)
-[![Test](https://github.com/julienbrg/zk-api/actions/workflows/test.yml/badge.svg)](https://github.com/julienbrg/zk-api/actions/workflows/test.yml)
-[![codecov](https://codecov.io/gh/julienbrg/zk-api/branch/main/graph/badge.svg)](https://codecov.io/gh/julienbrg/zk-api)
+[![Test](https://github.com/w3hc/zk-api/actions/workflows/test.yml/badge.svg)](https://github.com/w3hc/zk-api/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/w3hc/zk-api/branch/main/graph/badge.svg)](https://codecov.io/gh/w3hc/zk-api)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-10.23-F69220?logo=pnpm)](https://pnpm.io/)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js)](https://nodejs.org/)
