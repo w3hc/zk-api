@@ -4,6 +4,8 @@
 
 ZK API enables anonymous access to Claude's AI models through a prepaid credit system backed by Ethereum smart contracts. Users deposit ETH once and make thousands of anonymous API requests without revealing their identity or linking requests together, using ZK-SNARK proofs and Rate-Limit Nullifiers (RLN).
 
+See the [ZK API Usage Credits: LLMs and Beyond](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) original proposal on Ethresear.ch for more details.
+
 ## Overview
 
 ### Key Features
@@ -88,7 +90,7 @@ pnpm ts-node scripts/test-api-request.ts
 
 ## Flow
 
-### 1. One-Time Setup
+### One-Time Setup
 
 ```typescript
 import { buildPoseidon } from 'circomlibjs';
@@ -106,7 +108,7 @@ await zkApiCredits.deposit(idCommitment, {
 });
 ```
 
-### 2. Making Requests
+### Making Requests
 
 ```typescript
 // Generate ZK proof
@@ -142,7 +144,7 @@ const { refundTicket } = await response.json();
 refundTickets.push(refundTicket);
 ```
 
-### 3. Redeeming Refunds
+### Redeeming Refunds
 
 ```typescript
 // Redeem accumulated refunds on-chain
