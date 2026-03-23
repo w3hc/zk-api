@@ -2,9 +2,11 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
 import * as ZkApiCreditsABI from './contracts/ZkApiCredits.abi.json';
+import { MerkleTreeService } from './merkle-tree.service';
 
 /**
  * Service for interacting with the ZkApiCredits smart contract
+ * and maintaining an off-chain Merkle tree for proof generation
  */
 @Injectable()
 export class BlockchainService implements OnModuleInit {
@@ -13,7 +15,10 @@ export class BlockchainService implements OnModuleInit {
   private contract: ethers.Contract | null = null;
   private wallet: ethers.Wallet | null = null;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly merkleTree: MerkleTreeService,
+  ) {}
 
   async onModuleInit() {
     const rpcUrl = this.configService.get<string>('ANVIL_RPC_URL');
@@ -47,8 +52,55 @@ export class BlockchainService implements OnModuleInit {
       this.logger.log(
         `Connected to ZkApiCredits at ${contractAddress}. Merkle root: ${merkleRoot}`,
       );
+
+      // Sync Merkle tree with on-chain state
+      await this.syncMerkleTree();
     } catch (error) {
       this.logger.error('Failed to connect to blockchain', error);
+    }
+  }
+
+  /**
+   * Sync off-chain Merkle tree with on-chain identity commitments
+   */
+  async syncMerkleTree(): Promise<void> {
+    if (!this.contract) {
+      this.logger.warn('Cannot sync Merkle tree - blockchain not initialized');
+      return;
+    }
+
+    try {
+      const commitments = await this.getAllIdentityCommitments();
+      await this.merkleTree.clear();
+
+      if (commitments.length === 0) {
+        this.logger.log('No identity commitments found on-chain');
+        return;
+      }
+
+      const bigintCommitments = commitments.map((c) => BigInt(c));
+      await this.merkleTree.insertBatch(bigintCommitments);
+
+      const offChainRoot = await this.merkleTree.getRoot();
+      const onChainRoot = await this.getMerkleRoot();
+
+      this.logger.log(
+        `Merkle tree synced: ${commitments.length} commitments loaded`,
+      );
+      this.logger.debug(`Off-chain root: 0x${offChainRoot.toString(16)}`);
+      this.logger.debug(`On-chain root:  ${onChainRoot}`);
+
+      // Verify roots match
+      const offChainRootHex =
+        '0x' + offChainRoot.toString(16).padStart(64, '0');
+      if (offChainRootHex.toLowerCase() !== onChainRoot.toLowerCase()) {
+        this.logger.warn(
+          'Merkle root mismatch between off-chain and on-chain!',
+        );
+      }
+    } catch (error) {
+      this.logger.error('Failed to sync Merkle tree', error);
+      throw error;
     }
   }
 
@@ -160,6 +212,63 @@ export class BlockchainService implements OnModuleInit {
     const minPolicyStake = (await this.contract.minPolicyStake()) as bigint;
 
     return { minRlnStake, minPolicyStake };
+  }
+
+  /**
+   * Get Merkle proof for an identity commitment
+   */
+  async getMerkleProof(idCommitment: bigint): Promise<{
+    pathElements: string[];
+    pathIndices: number[];
+    leaf: string;
+    root: string;
+  }> {
+    const leafIndex = await this.merkleTree.findLeafIndex(idCommitment);
+    if (leafIndex === -1) {
+      throw new Error('Identity commitment not found in Merkle tree');
+    }
+
+    const proof = await this.merkleTree.generateProof(leafIndex);
+
+    return {
+      pathElements: proof.pathElements.map(
+        (e) => '0x' + e.toString(16).padStart(64, '0'),
+      ),
+      pathIndices: proof.pathIndices,
+      leaf: '0x' + proof.leaf.toString(16).padStart(64, '0'),
+      root: '0x' + proof.root.toString(16).padStart(64, '0'),
+    };
+  }
+
+  /**
+   * Verify if an identity commitment is a member of the Merkle tree
+   */
+  async verifyMembership(idCommitment: bigint): Promise<boolean> {
+    return await this.merkleTree.isMember(idCommitment);
+  }
+
+  /**
+   * Get Merkle tree statistics
+   */
+  async getMerkleTreeStats(): Promise<{
+    depth: number;
+    leafCount: number;
+    capacity: number;
+    root: string;
+  }> {
+    return await this.merkleTree.getStats();
+  }
+
+  /**
+   * Add identity commitment to off-chain Merkle tree
+   * Note: This should be called when monitoring on-chain Deposit events
+   */
+  async addIdentityCommitment(idCommitment: bigint): Promise<number> {
+    const index = await this.merkleTree.insert(idCommitment);
+    this.logger.log(
+      `Added identity commitment to Merkle tree at index ${index}`,
+    );
+    return index;
   }
 
   /**

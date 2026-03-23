@@ -7,6 +7,7 @@ import { EthRateOracleService } from './eth-rate-oracle.service';
 import { RefundSignerService } from './refund-signer.service';
 import { BlockchainService } from './blockchain.service';
 import { ProofGenService } from './proof-gen.service';
+import { MerkleTreeService } from './merkle-tree.service';
 
 @Module({
   controllers: [ZkApiController],
@@ -18,7 +19,13 @@ import { ProofGenService } from './proof-gen.service';
     EthRateOracleService,
     RefundSignerService,
     BlockchainService,
+    MerkleTreeService,
   ],
-  exports: [ZkApiService, ProofGenService],
+  exports: [
+    ZkApiService,
+    ProofGenService,
+    BlockchainService,
+    MerkleTreeService,
+  ],
 })
 export class ZkApiModule {}
