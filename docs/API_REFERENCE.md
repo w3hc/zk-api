@@ -1,98 +1,55 @@
-# ZK API API Reference
+# ZK API Reference
 
-Complete reference for all REST API endpoints in ZK API.
+Complete API reference for the ZK API privacy-preserving Claude access system.
 
 ## Base URL
 
 ```
-https://localhost:3000
+https://localhost:3000  (development)
+https://your-domain.com  (production)
 ```
 
-**Note:** In development, use `-k` flag with curl to accept self-signed certificates.
+**Development Note:** Use `-k` flag with curl to accept self-signed certificates in local development.
 
 ## Table of Contents
 
-- [ZK API API Reference](#zk-api-api-reference)
-  - [Base URL](#base-url)
-  - [Table of Contents](#table-of-contents)
-  - [Chest Endpoints](#chest-endpoints)
-    - [GET /chest/attestation](#get-chestattestation)
-    - [POST /chest/store](#post-cheststore)
-    - [GET /chest/access/:slot](#get-chestaccessslot)
-  - [Authentication Endpoints](#authentication-endpoints)
-    - [POST /auth/nonce](#post-authnonce)
-  - [Health Check Endpoints](#health-check-endpoints)
-    - [GET /health](#get-health)
-    - [GET /health/ready](#get-healthready)
-    - [GET /health/live](#get-healthlive)
-  - [Error Responses](#error-responses)
-  - [Rate Limiting](#rate-limiting)
-  - [Swagger/OpenAPI Documentation](#swaggeropenapi-documentation)
-  - [Client Libraries](#client-libraries)
-  - [Security Best Practices](#security-best-practices)
-  - [Support](#support)
-  - [Related Documentation](#related-documentation)
+- [App Endpoints](#app-endpoints)
+  - [POST /zk-api/request](#post-zk-apirequest)
+  - [POST /zk-api/redeem-refund](#post-zk-apiredeem-refund)
+  - [GET /zk-api/server-pubkey](#get-zk-apiserver-pubkey)
+- [Authentication Endpoints](#authentication-endpoints)
+  - [POST /auth/nonce](#post-authnonce)
+- [Health Check Endpoints](#health-check-endpoints)
+  - [GET /health](#get-health)
+  - [GET /health/ready](#get-healthready)
+  - [GET /health/live](#get-healthlive)
+- [Error Responses](#error-responses)
+- [Protocol Flow](#protocol-flow)
+- [Client Implementation Guide](#client-implementation-guide)
 
 ---
 
-## Chest Endpoints
+## App Endpoints
 
-### GET /chest/attestation
+### POST /zk-api/request
 
-Get TEE attestation proving the service cannot access user data.
+Submit anonymous Claude API request with Zero-Knowledge proof of solvency.
 
-**Authentication:** None (publicly accessible)
-
-**Response:**
-
-```typescript
-{
-  platform: 'amd-sev-snp' | 'intel-tdx' | 'aws-nitro' | 'phala' | 'none';
-  report: string;           // Base64-encoded attestation report/quote from TEE
-  measurement: string;      // Measurement/hash of the code running in the TEE
-  timestamp: string;        // ISO 8601 timestamp when attestation was generated
-  publicKey?: string;       // Public key of the TEE (if applicable)
-  mlkemPublicKey?: string;  // ML-KEM-1024 public key for quantum-resistant encryption (base64)
-}
-```
-
-**Example:**
-
-```bash
-# Request
-curl -k https://localhost:3000/chest/attestation
-
-# Response
-{
-  "platform": "intel-tdx",
-  "report": "eyJhdHRlc3RhdGlvbiI6ICIuLi4ifQ==",
-  "measurement": "abc123def456...",
-  "timestamp": "2026-03-18T10:30:00.000Z",
-  "mlkemPublicKey": "k3VARNFcS4hWl6AfR0DMy..."
-}
-```
-
-**Use Cases:**
-1. **Verify code integrity** - Compare `measurement` with published source code hash
-2. **Get encryption key** - Use `mlkemPublicKey` to encrypt secrets client-side (quantum-resistant)
-3. **Confirm TEE platform** - Check that service is running in genuine TEE hardware
-
-**See also:** [Client-Side Encryption Guide](CLIENT_ENCRYPTION.md)
-
----
-
-### POST /chest/store
-
-Store a secret with owner-based access control.
-
-**Authentication:** None required for storing
+**Authentication:** None (anonymity is provided by ZK proof)
 
 **Request Body:**
 
 ```typescript
 {
-  secret: string;              // The secret to store (recommend encrypting with ML-KEM first)
-  publicAddresses: string[];   // Array of Ethereum addresses that can access this secret
+  payload: string;              // The message/prompt for Claude
+  proof: string;                // Groth16 ZK proof (JSON string)
+  nullifier: string;            // Unique nullifier for this request
+  signal: {
+    x: string;                  // RLN signal x component
+    y: string;                  // RLN signal y component
+  };
+  maxCost: string;              // Maximum cost willing to pay (in wei)
+  model?: string;               // claude-opus-4.6, claude-sonnet-4.6, claude-haiku-4.5 (default: sonnet)
 }
 ```
 
@@ -100,158 +57,193 @@ Store a secret with owner-based access control.
 
 ```typescript
 {
-  slot: string;  // Unique 64-character hex identifier for this secret
+  response: string;             // Claude's response
+  actualCost: string;           // Actual cost in wei
+  refundTicket: {
+    nullifier: string;          // Nullifier of this request
+    value: string;              // Refund amount (maxCost - actualCost) in wei
+    timestamp: number;          // Unix timestamp
+    signature: {
+      R8x: string;              // EdDSA signature component
+      R8y: string;              // EdDSA signature component
+      S: string;                // EdDSA signature component
+    };
+  };
+  usage: {
+    inputTokens: number;        // Tokens in request
+    outputTokens: number;       // Tokens in response
+  };
 }
 ```
 
 **Status Codes:**
-- `201 Created` - Secret stored successfully
-- `400 Bad Request` - Invalid request (empty secret, invalid addresses, etc.)
+- `200 OK` - Request processed successfully
+- `400 Bad Request` - Invalid request parameters
+- `401 Unauthorized` - Invalid ZK proof
+- `403 Forbidden` - Nullifier already used or double-spend detected
+- `500 Internal Server Error` - Server error
 
 **Example:**
 
 ```bash
 # Request
-curl -k -X POST https://localhost:3000/chest/store \
+curl -k -X POST https://localhost:3000/zk-api/request \
   -H "Content-Type: application/json" \
   -d '{
-    "secret": "苟全性命於亂世，不求聞達於諸侯。",
-    "publicAddresses": ["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"]
+    "payload": "What does 苟全性命於亂世，不求聞達於諸侯。mean?",
+    "proof": "{\"pi_a\":[\"123...\",\"456...\"],\"pi_b\":[[\"789...\"]],\"pi_c\":[\"012...\"]}",
+    "nullifier": "12345678901234567890123456789012",
+    "signal": {
+      "x": "98765432109876543210987654321098",
+      "y": "11111111111111111111111111111111"
+    },
+    "maxCost": "1000000000000000",
+    "model": "claude-sonnet-4.6"
   }'
 
 # Response
 {
-  "slot": "a1b2c3d4e5f6789012345678901234567890123456789012345678901234567890"
+  "response": "Quantum computing is a type of computation that harnesses quantum mechanical phenomena...",
+  "actualCost": "750000000000000",
+  "refundTicket": {
+    "nullifier": "12345678901234567890123456789012",
+    "value": "250000000000000",
+    "timestamp": 1710857400,
+    "signature": {
+      "R8x": "0x1234...",
+      "R8y": "0x5678...",
+      "S": "0x9abc..."
+    }
+  },
+  "usage": {
+    "inputTokens": 50,
+    "outputTokens": 300
+  }
 }
 ```
 
-**Security Recommendations:**
+**Security Notes:**
 
-1. **Encrypt secrets client-side** with ML-KEM before storing:
-   ```typescript
-   // Get ML-KEM public key from attestation
-   const attestation = await fetch('/chest/attestation').then(r => r.json());
+1. **Unique Nullifiers**: Each nullifier can only be used once. Reusing a nullifier triggers:
+   - Same message: Replay attack → Request rejected
+   - Different message: Double-spend → Secret key extracted → RLN stake slashed
 
-   // Encrypt with ML-KEM (see Client-Side Encryption guide)
-   const encrypted = await encryptWithMlKem(secret, attestation.mlkemPublicKey);
+2. **ZK Proof Requirements**: The proof must demonstrate:
+   - Identity commitment is in the Merkle tree (membership)
+   - Sufficient balance for this request (solvency)
+   - All previous refund tickets are valid (EdDSA signatures)
+   - Correct RLN signal generation (nullifier = Hash(a), y = k + a*x)
 
-   // Store encrypted secret
-   await fetch('/chest/store', {
-     method: 'POST',
-     body: JSON.stringify({
-       secret: JSON.stringify(encrypted),
-       publicAddresses: [myAddress]
-     })
-   });
-   ```
+3. **Cost Protection**: Set `maxCost` to protect against unexpected price changes
 
-2. **Use checksummed Ethereum addresses** - Both formats are accepted
-3. **Store slot ID securely** - You'll need it to retrieve the secret later
-
-**See also:** [Client-Side Encryption Guide](CLIENT_ENCRYPTION.md)
+**See Also:** [ZK System Guide](ZK.md), [Testing Guide](TESTING_GUIDE.md)
 
 ---
 
-### GET /chest/access/:slot
+### POST /zk-api/redeem-refund
 
-Access a stored secret.
+Redeem a signed refund ticket on-chain.
 
-**Authentication:** Required (SIWE)
+**Authentication:** None (refund ticket signature authenticates)
 
-**Path Parameters:**
-- `slot` - The slot identifier returned from `/chest/store`
+**Request Body:**
 
-**Headers:**
-```
-x-siwe-message: <base64-encoded SIWE message>
-x-siwe-signature: <hex signature>
+```typescript
+{
+  idCommitment: string;         // User's identity commitment
+  nullifier: string;            // Nullifier from the API request
+  value: string;                // Refund amount in wei
+  timestamp: number;            // Timestamp from refund ticket
+  signature: {
+    R8x: string;                // EdDSA signature components
+    R8y: string;
+    S: string;
+  };
+  recipient: string;            // Ethereum address to receive refund
+}
 ```
 
 **Response:**
 
 ```typescript
 {
-  secret: string;  // The stored secret (decrypted if it was encrypted with ML-KEM)
+  success: boolean;
+  transactionHash: string;      // Ethereum transaction hash
+  message: string;              // Human-readable message
 }
 ```
 
 **Status Codes:**
-- `200 OK` - Secret retrieved successfully
-- `401 Unauthorized` - Missing or invalid SIWE authentication
-- `403 Forbidden` - Caller is not an owner of this secret
-- `404 Not Found` - Slot does not exist
+- `200 OK` - Refund redeemed successfully
+- `400 Bad Request` - Invalid refund ticket or signature
+- `403 Forbidden` - Refund already redeemed or nullifier slashed
+- `503 Service Unavailable` - Blockchain service not available
 
 **Example:**
 
 ```bash
-# Step 1: Get nonce
-NONCE=$(curl -k -X POST https://localhost:3000/auth/nonce | jq -r '.nonce')
-
-# Step 2: Create and sign SIWE message (using your wallet)
-# Message format:
-# localhost wants you to sign in with your Ethereum account:
-# 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
-#
-# URI: https://localhost:3000
-# Version: 1
-# Chain ID: 1
-# Nonce: <NONCE>
-# Issued At: 2026-03-18T10:30:00.000Z
-
-# Step 3: Access secret with SIWE authentication
-curl -k https://localhost:3000/chest/access/a1b2c3d4... \
-  -H "x-siwe-message: $(echo -n "$MESSAGE" | base64)" \
-  -H "x-siwe-signature: $SIGNATURE"
+# Request
+curl -k -X POST https://localhost:3000/zk-api/redeem-refund \
+  -H "Content-Type: application/json" \
+  -d '{
+    "idCommitment": "0xabcd...",
+    "nullifier": "12345678901234567890123456789012",
+    "value": "250000000000000",
+    "timestamp": 1710857400,
+    "signature": {
+      "R8x": "0x1234...",
+      "R8y": "0x5678...",
+      "S": "0x9abc..."
+    },
+    "recipient": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+  }'
 
 # Response
 {
-  "secret": "苟全性命於亂世，不求聞達於諸侯。"
+  "success": true,
+  "transactionHash": "0xdef456...",
+  "message": "Refund of 250000000000000 wei redeemed successfully"
 }
 ```
 
-**TypeScript Example:**
+**Important Notes:**
+
+- Refund tickets can only be redeemed once
+- The smart contract verifies the EdDSA signature on-chain
+- If the nullifier was slashed for double-spending, redemption will fail
+- Redemption requires on-chain gas fees (paid by caller)
+
+---
+
+### GET /zk-api/server-pubkey
+
+Get the server's EdDSA public key for verifying refund ticket signatures.
+
+**Authentication:** None
+
+**Response:**
 
 ```typescript
-import { SiweMessage } from 'siwe';
-
-// Get nonce
-const { nonce } = await fetch('https://localhost:3000/auth/nonce', {
-  method: 'POST'
-}).then(r => r.json());
-
-// Create SIWE message
-const siweMessage = new SiweMessage({
-  domain: 'localhost',
-  address: walletAddress,
-  uri: 'https://localhost:3000',
-  version: '1',
-  chainId: 1,
-  nonce: nonce,
-  issuedAt: new Date().toISOString(),
-});
-
-const message = siweMessage.prepareMessage();
-const signature = await wallet.signMessage(message);
-
-// Access secret
-const response = await fetch(`https://localhost:3000/chest/access/${slot}`, {
-  headers: {
-    'x-siwe-message': Buffer.from(message).toString('base64'),
-    'x-siwe-signature': signature,
-  },
-});
-
-const { secret } = await response.json();
-console.log('Secret:', secret);
+{
+  x: string;  // Public key x coordinate (hex)
+  y: string;  // Public key y coordinate (hex)
+}
 ```
 
-**Security Notes:**
-- SIWE nonces are single-use and expire after 5 minutes
-- Signatures must be valid for the authenticated Ethereum address
-- Only addresses in the `publicAddresses` array can access the secret
-- Case-insensitive address matching (checksummed or lowercase both work)
+**Example:**
 
-**See also:** [SIWE Authentication Guide](SIWE.md)
+```bash
+# Request
+curl -k https://localhost:3000/zk-api/server-pubkey
+
+# Response
+{
+  "x": "0x1a2b3c4d...",
+  "y": "0x9e8f7d6c..."
+}
+```
+
+**Use Case:** Clients can verify refund ticket signatures off-chain before attempting to redeem on-chain.
 
 ---
 
@@ -261,49 +253,28 @@ console.log('Secret:', secret);
 
 Generate a SIWE (Sign-In with Ethereum) nonce for authentication.
 
+**Note:** Currently used for legacy Chest API endpoints. Not required for ZK API endpoints.
+
 **Authentication:** None
 
 **Response:**
 
 ```typescript
 {
-  nonce: string;  // Random nonce for SIWE message (single-use, expires in 5 minutes)
+  nonce: string;  // Random nonce (single-use, expires in 5 minutes)
 }
 ```
 
 **Example:**
 
 ```bash
-# Request
 curl -k -X POST https://localhost:3000/auth/nonce
 
 # Response
 {
-  "nonce": "1a2b3c4d5e6f7890"
+  "nonce": "a1b2c3d4e5f67890"
 }
 ```
-
-**Usage Flow:**
-
-1. Call `/auth/nonce` to get a fresh nonce
-2. Create SIWE message with the nonce
-3. Sign the message with your Ethereum wallet
-4. Use the signature in `x-siwe-signature` header for protected endpoints
-
-**Example SIWE Message Format:**
-
-```
-localhost wants you to sign in with your Ethereum account:
-0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
-
-URI: https://localhost:3000
-Version: 1
-Chain ID: 1
-Nonce: 1a2b3c4d5e6f7890
-Issued At: 2026-03-18T10:30:00.000Z
-```
-
-**See also:** [SIWE Authentication Guide](SIWE.md)
 
 ---
 
@@ -312,8 +283,6 @@ Issued At: 2026-03-18T10:30:00.000Z
 ### GET /health
 
 General health check endpoint.
-
-**Authentication:** None
 
 **Response:**
 
@@ -324,25 +293,11 @@ General health check endpoint.
 }
 ```
 
-**Example:**
-
-```bash
-curl -k https://localhost:3000/health
-
-# Response
-{
-  "status": "ok",
-  "timestamp": "2026-03-18T10:30:00.000Z"
-}
-```
-
 ---
 
 ### GET /health/ready
 
 Readiness probe for orchestration systems (Kubernetes, etc.).
-
-**Authentication:** None
 
 **Response:**
 
@@ -350,7 +305,6 @@ Readiness probe for orchestration systems (Kubernetes, etc.).
 {
   status: 'ready' | 'not ready';
   checks: {
-    database?: boolean;
     tee?: boolean;
     encryption?: boolean;
   };
@@ -358,31 +312,14 @@ Readiness probe for orchestration systems (Kubernetes, etc.).
 ```
 
 **Status Codes:**
-- `200 OK` - Service is ready to accept traffic
+- `200 OK` - Service is ready
 - `503 Service Unavailable` - Service is not ready
-
-**Example:**
-
-```bash
-curl -k https://localhost:3000/health/ready
-
-# Response
-{
-  "status": "ready",
-  "checks": {
-    "tee": true,
-    "encryption": true
-  }
-}
-```
 
 ---
 
 ### GET /health/live
 
 Liveness probe for orchestration systems.
-
-**Authentication:** None
 
 **Response:**
 
@@ -396,17 +333,6 @@ Liveness probe for orchestration systems.
 - `200 OK` - Service is alive
 - `503 Service Unavailable` - Service should be restarted
 
-**Example:**
-
-```bash
-curl -k https://localhost:3000/health/live
-
-# Response
-{
-  "status": "alive"
-}
-```
-
 ---
 
 ## Error Responses
@@ -417,136 +343,348 @@ All endpoints return consistent error responses:
 {
   statusCode: number;
   message: string;
-  error?: string;  // Error type (BadRequest, Unauthorized, etc.)
+  error?: string;  // Error type (BadRequest, Unauthorized, Forbidden, etc.)
 }
 ```
 
 **Common Status Codes:**
-- `400 Bad Request` - Invalid request parameters or body
-- `401 Unauthorized` - Missing or invalid authentication
-- `403 Forbidden` - Authenticated but not authorized
-- `404 Not Found` - Resource does not exist
-- `500 Internal Server Error` - Unexpected server error
+
+| Code | Meaning | Common Causes |
+|------|---------|---------------|
+| 400 | Bad Request | Invalid parameters, missing fields |
+| 401 | Unauthorized | Invalid ZK proof |
+| 403 | Forbidden | Nullifier reused, double-spend detected |
+| 404 | Not Found | Resource does not exist |
+| 500 | Internal Server Error | Unexpected server error |
+| 503 | Service Unavailable | Blockchain or external API unavailable |
 
 **Example Error:**
 
 ```json
 {
-  "statusCode": 400,
-  "message": "Secret cannot be empty",
-  "error": "Bad Request"
+  "statusCode": 403,
+  "message": "Double-spend detected. Your secret key has been extracted and you will be slashed.",
+  "error": "Forbidden"
 }
 ```
 
 ---
 
-## Rate Limiting
+## Protocol Flow
 
-All endpoints are rate-limited to prevent abuse:
-
-- **Global limit:** 100 requests per minute per IP
-- **Auth endpoints:** 10 requests per minute per IP
-- **Store endpoint:** 50 requests per minute per IP
-
-**Rate Limit Headers:**
+### Complete Request Flow
 
 ```
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 1234567890
-```
-
-**Rate Limit Exceeded Response:**
-
-```json
-{
-  "statusCode": 429,
-  "message": "Too Many Requests",
-  "error": "ThrottlerException"
-}
+┌─────────────┐
+│   Client    │
+└──────┬──────┘
+       │
+       │ 1. Generate secret key (once)
+       ▼
+   secretKey = random()
+   idCommitment = Hash(secretKey)
+       │
+       │ 2. Deposit to smart contract
+       ▼
+   zkApiCredits.deposit(idCommitment, { value: 0.01 ETH })
+       │
+       │ 3. For each request:
+       ▼
+   Generate ZK proof:
+     - Merkle proof of membership
+     - Sum of previous refunds
+     - Solvency: (ticketIndex + 1) × maxCost ≤ deposit + refunds
+       │
+       │ 4. Compute RLN signal
+       ▼
+   a = Hash(secretKey, ticketIndex)
+   nullifier = Hash(a)
+   x = Hash(payload)
+   y = secretKey + a × x
+       │
+       │ 5. Submit request
+       ▼
+   POST /zk-api/request
+   {
+     payload: "What does 苟全性命於亂世，不求聞達於諸侯。mean?",
+     proof: {...},
+     nullifier: nullifier,
+     signal: { x, y },
+     maxCost: "1000000000000000"
+   }
+       │
+       ▼
+┌──────────────────────────────┐
+│      Server Verification     │
+├──────────────────────────────┤
+│ 1. Check nullifier reuse     │
+│ 2. Verify ZK proof           │
+│ 3. Execute Claude API call   │
+│ 4. Calculate actual cost     │
+│ 5. Sign refund ticket        │
+└──────┬───────────────────────┘
+       │
+       │ 6. Return response + refund ticket
+       ▼
+   {
+     response: "...",
+     actualCost: "750000000000000",
+     refundTicket: { signature: {...} }
+   }
+       │
+       │ 7. Store refund ticket
+       ▼
+   refundTickets.push(refundTicket)
+   ticketIndex++
+       │
+       │ 8. After multiple requests, redeem refunds
+       ▼
+   POST /zk-api/redeem-refund
+   { nullifier, value, signature, recipient }
+       │
+       ▼
+   Smart contract verifies signature
+   → Transfers refund to recipient
 ```
 
 ---
 
-## Swagger/OpenAPI Documentation
+## Client Implementation Guide
 
-Interactive API documentation is available at:
+### Prerequisites
 
-```
-https://localhost:3000
-```
-
-Features:
-- Try out endpoints directly in the browser
-- See request/response schemas
-- View example requests and responses
-- Download OpenAPI specification
-
----
-
-## Client Libraries
-
-**TypeScript/JavaScript:**
 ```bash
-npm install mlkem siwe ethers
+npm install circomlibjs snarkjs ethers
 ```
 
-**Recommended Libraries:**
-- `mlkem` - Quantum-resistant encryption
-- `siwe` - Sign-In with Ethereum
-- `ethers` - Ethereum wallet interaction
-- `w3pk` - Web3 passkey SDK (for wallet + encryption)
+### 1. Generate Identity
 
-**See also:**
-- [Client-Side Encryption Guide](CLIENT_ENCRYPTION.md)
-- [SIWE Authentication Guide](SIWE.md)
+```typescript
+import { buildPoseidon } from 'circomlibjs';
+import { randomBytes } from 'crypto';
+
+// Generate secret key (store securely!)
+const secretKey = BigInt('0x' + randomBytes(32).toString('hex'));
+
+// Create identity commitment
+const poseidon = await buildPoseidon();
+const idCommitment = poseidon([secretKey]);
+
+console.log('Secret Key:', secretKey.toString(16));
+console.log('ID Commitment:', poseidon.F.toString(idCommitment, 16));
+```
+
+### 2. Deposit to Smart Contract
+
+```typescript
+import { ethers } from 'ethers';
+
+const provider = new ethers.JsonRpcProvider('https://mainnet.infura.io/v3/YOUR_KEY');
+const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+
+const zkApiCredits = new ethers.Contract(
+  ZK_API_CREDITS_ADDRESS,
+  ZK_API_CREDITS_ABI,
+  wallet
+);
+
+const tx = await zkApiCredits.deposit(idCommitment, {
+  value: ethers.parseEther('0.01')
+});
+
+await tx.wait();
+console.log('Deposit successful!');
+```
+
+### 3. Generate ZK Proof
+
+```typescript
+import { groth16 } from 'snarkjs';
+
+async function generateProof(
+  secretKey: bigint,
+  merkleProof: any,
+  refundTickets: any[],
+  ticketIndex: number,
+  maxCost: bigint,
+  payload: string
+) {
+  const poseidon = await buildPoseidon();
+  const F = poseidon.F;
+
+  // Compute RLN values
+  const a = poseidon([secretKey, ticketIndex]);
+  const nullifier = poseidon([a]);
+  const x = poseidon([payload]);
+  const y = F.add(secretKey, F.mul(a, x));
+
+  // Circuit inputs
+  const inputs = {
+    secretKey: secretKey.toString(),
+    pathElements: merkleProof.pathElements,
+    pathIndices: merkleProof.pathIndices,
+    refundValues: refundTickets.map(t => t.value),
+    refundSignatures: refundTickets.map(t => [t.signature.R8x, t.signature.R8y, t.signature.S]),
+    ticketIndex: ticketIndex,
+    merkleRoot: merkleProof.root,
+    maxCost: maxCost.toString(),
+    initialDeposit: INITIAL_DEPOSIT.toString(),
+    signalX: F.toString(x),
+    serverPubKeyX: SERVER_PUBKEY_X,
+    serverPubKeyY: SERVER_PUBKEY_Y
+  };
+
+  // Generate proof
+  const { proof, publicSignals } = await groth16.fullProve(
+    inputs,
+    'circuits/api_credit_proof.wasm',
+    'circuits/api_credit_proof.zkey'
+  );
+
+  return {
+    proof: JSON.stringify(proof),
+    nullifier: F.toString(nullifier),
+    signal: {
+      x: F.toString(x),
+      y: F.toString(y)
+    }
+  };
+}
+```
+
+### 4. Make API Request
+
+```typescript
+const { proof, nullifier, signal } = await generateProof(
+  secretKey,
+  merkleProof,
+  refundTickets,
+  ticketIndex,
+  ethers.parseEther('0.001'),
+  'What does 苟全性命於亂世，不求聞達於諸侯。mean?'
+);
+
+const response = await fetch('https://api.zkapi.example/zk-api/request', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    payload: 'What does 苟全性命於亂世，不求聞達於諸侯。mean?',
+    proof,
+    nullifier,
+    signal,
+    maxCost: ethers.parseEther('0.001').toString(),
+    model: 'claude-sonnet-4.6'
+  })
+});
+
+const result = await response.json();
+console.log('Response:', result.response);
+console.log('Cost:', ethers.formatEther(result.actualCost), 'ETH');
+
+// Store refund ticket for next request
+refundTickets.push(result.refundTicket);
+ticketIndex++;
+```
+
+### 5. Redeem Refund Tickets
+
+```typescript
+// Redeem accumulated refunds
+for (const ticket of refundTickets) {
+  const response = await fetch('https://api.zkapi.example/zk-api/redeem-refund', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      idCommitment: idCommitment.toString(),
+      nullifier: ticket.nullifier,
+      value: ticket.value,
+      timestamp: ticket.timestamp,
+      signature: ticket.signature,
+      recipient: YOUR_ETHEREUM_ADDRESS
+    })
+  });
+
+  const result = await response.json();
+  console.log('Refund redeemed:', result.transactionHash);
+}
+```
+
+---
+
+## Cost Calculation
+
+### Claude API Pricing (March 2026)
+
+| Model | Input ($/M tokens) | Output ($/M tokens) |
+|-------|-------------------|---------------------|
+| claude-opus-4.6 | $5 | $25 |
+| claude-sonnet-4.6 | $3 | $15 |
+| claude-haiku-4.5 | $1 | $5 |
+
+### Example Calculations
+
+Assuming ETH = $2,000:
+
+**Simple Q&A (Opus 4.6)**
+- Input: 100 tokens = 100/1M × $5 = $0.0005
+- Output: 400 tokens = 400/1M × $25 = $0.01
+- Total: $0.0105 = 0.00000525 ETH = 5,250,000,000,000 wei
+
+**Code Generation (Sonnet 4.6)**
+- Input: 500 tokens = 500/1M × $3 = $0.0015
+- Output: 2000 tokens = 2000/1M × $15 = $0.03
+- Total: $0.0315 = 0.00001575 ETH = 15,750,000,000,000 wei
 
 ---
 
 ## Security Best Practices
 
-1. **Always verify attestation** before encrypting secrets
-   ```typescript
-   const attestation = await fetch('/chest/attestation').then(r => r.json());
-   if (attestation.measurement !== EXPECTED_MEASUREMENT) {
-     throw new Error('Code measurement mismatch!');
-   }
-   ```
+1. **Protect Your Secret Key**
+   - Store in secure key management system
+   - Never transmit over network
+   - Never log or print
+   - Use hardware security module (HSM) for production
 
-2. **Encrypt secrets client-side** with ML-KEM before storing
-   - See [Client-Side Encryption Guide](CLIENT_ENCRYPTION.md)
+2. **Never Reuse Nullifiers**
+   - Track `ticketIndex` carefully
+   - Increment after each request
+   - Store state persistently
 
-3. **Use HTTPS in production** with real TLS certificates
-   - Never use `-k` flag in production
-   - Generate certificates inside TEE
+3. **Verify Refund Signatures**
+   - Check server's EdDSA signature before redeeming
+   - Compare against server public key
 
-4. **Store slot IDs securely**
-   - Don't expose in URLs or logs
-   - Consider encrypting slot IDs client-side
+4. **Set Reasonable Max Cost**
+   - Estimate token usage
+   - Add safety margin (20-50%)
+   - Refunds are automatic
 
-5. **Validate Ethereum addresses** before storing
-   - Use checksummed addresses
-   - Verify addresses are owned by intended users
-
-6. **Handle SIWE nonces properly**
-   - Request fresh nonce for each authentication
-   - Don't reuse nonces
-   - Check nonce expiration (5 minutes)
+5. **Monitor Double-Spend Attempts**
+   - If secret key is compromised, withdraw immediately
+   - Watch for suspicious nullifier patterns
 
 ---
 
 ## Support
 
 - **Documentation:** [docs/](.)
-- **Issues:** File issues on GitHub repository
-- **Security:** See [SIDE_CHANNEL_ATTACKS.md](SIDE_CHANNEL_ATTACKS.md)
+- **ZK System Guide:** [ZK.md](ZK.md)
+- **Testing Guide:** [TESTING_GUIDE.md](TESTING_GUIDE.md)
+- **Smart Contract:** [contracts/src/ZkApiCredits.sol](../contracts/src/ZkApiCredits.sol)
+- **Issues:** GitHub repository
 
 ---
 
-## Related Documentation
+## References
 
-- [Overview](OVERVIEW.md) - Project overview and architecture
-- [Client-Side Encryption](CLIENT_ENCRYPTION.md) - Quantum-resistant encryption guide
-- [TEE Setup](TEE_SETUP.md) - Platform-specific deployment
-- [SIWE Authentication](SIWE.md) - Ethereum wallet authentication
-- [Side Channel Attacks](SIDE_CHANNEL_ATTACKS.md) - Security considerations
+- [ZK API Usage Credits Proposal](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) - Davide Crapis & Vitalik Buterin
+- [Rate-Limit Nullifiers Documentation](https://rate-limiting-nullifier.github.io/rln-docs/)
+- [Circom Documentation](https://docs.circom.io/)
+- [SnarkJS](https://github.com/iden3/snarkjs)
+- [Anthropic API Pricing](https://www.anthropic.com/api)
+
+---
+
+## License
+
+GPL-3.0

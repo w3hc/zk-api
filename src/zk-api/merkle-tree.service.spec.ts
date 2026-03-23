@@ -7,7 +7,16 @@ describe('MerkleTreeService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [MerkleTreeService],
-    }).compile();
+    })
+      .setLogger({
+        log: jest.fn(),
+        error: jest.fn(),
+        warn: jest.fn(),
+        debug: jest.fn(),
+        verbose: jest.fn(),
+        fatal: jest.fn(),
+      })
+      .compile();
 
     service = module.get<MerkleTreeService>(MerkleTreeService);
   });

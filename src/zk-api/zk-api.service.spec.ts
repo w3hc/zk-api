@@ -42,7 +42,16 @@ describe('ZkApiService', () => {
           },
         },
       ],
-    }).compile();
+    })
+      .setLogger({
+        log: jest.fn(),
+        error: jest.fn(),
+        warn: jest.fn(),
+        debug: jest.fn(),
+        verbose: jest.fn(),
+        fatal: jest.fn(),
+      })
+      .compile();
 
     service = module.get<ZkApiService>(ZkApiService);
     nullifierStore = module.get<NullifierStoreService>(NullifierStoreService);
@@ -60,7 +69,7 @@ describe('ZkApiService', () => {
 
   describe('handleRequest', () => {
     const validRequest: ZkApiRequestDto = {
-      payload: 'What is quantum computing?',
+      payload: 'What does 苟全性命於亂世，不求聞達於諸侯。mean?',
       nullifier: '0x1234567890abcdef',
       signal: {
         x: '0xaabbccdd',

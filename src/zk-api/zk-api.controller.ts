@@ -13,7 +13,7 @@ import { ZkApiResponseDto } from './dto/api-response.dto';
 import { BlockchainService } from './blockchain.service';
 import { NullifierStoreService } from './nullifier-store.service';
 
-@ApiTags('zk-api')
+@ApiTags('App')
 @Controller('zk-api')
 export class ZkApiController {
   constructor(

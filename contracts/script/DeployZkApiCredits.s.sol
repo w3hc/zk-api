@@ -13,12 +13,18 @@ contract DeployZkApiCredits is Script {
         uint256 minRlnStake = 0.1 ether;
         uint256 minPolicyStake = 0.1 ether;
 
+        // Server EdDSA public key (placeholder for development)
+        bytes32 serverPubKeyX = bytes32(uint256(1));
+        bytes32 serverPubKeyY = bytes32(uint256(2));
+
         vm.startBroadcast(deployerPrivateKey);
 
         ZkApiCredits zkApi = new ZkApiCredits(
             serverAddress,
             minRlnStake,
-            minPolicyStake
+            minPolicyStake,
+            serverPubKeyX,
+            serverPubKeyY
         );
 
         console.log("ZkApiCredits deployed at:", address(zkApi));
