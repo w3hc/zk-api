@@ -25,11 +25,11 @@ ZK API enables anonymous access to Claude's AI models through a prepaid credit s
 
 ### Privacy Guarantees
 
-- ✅ **Identity Privacy** - Requests cannot be linked to your identity commitment
-- ✅ **Request Unlinkability** - Each request uses a unique nullifier
-- ✅ **Balance Privacy** - ZK proofs hide your actual balance
-- ✅ **Cryptographic Enforcement** - No trusted parties required
-- ✅ **Anonymity Set** - You're indistinguishable within all depositors
+- **Identity Privacy** - Requests cannot be linked to your identity commitment
+- **Request Unlinkability** - Each request uses a unique nullifier
+- **Balance Privacy** - ZK proofs hide your actual balance
+- **Cryptographic Enforcement** - No trusted parties required
+- **Anonymity Set** - You're indistinguishable within all depositors
 
 ## Quick Start
 
