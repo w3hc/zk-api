@@ -13,10 +13,10 @@ export class RefundSignerService {
   private readonly publicKey: { x: string; y: string };
 
   constructor() {
-    // In production, load from secure key management system
-    // For now, generate deterministic keys for development
+    // In production, load from secure key management system (HSM/KMS)
+    // For development, use OPERATOR_PRIVATE_KEY from environment
     this.privateKey =
-      process.env.SERVER_PRIVATE_KEY || this.generatePrivateKey();
+      process.env.OPERATOR_PRIVATE_KEY || this.generatePrivateKey();
     this.publicKey = this.derivePublicKey(this.privateKey);
 
     this.logger.log('Refund signer initialized');
