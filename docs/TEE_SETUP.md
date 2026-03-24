@@ -448,6 +448,10 @@ EOF
 
 [Phala Network](https://phala.network/) provides TEE-as-a-Service infrastructure through [Phala Cloud](https://cloud.phala.network/) and [Dstack](https://docs.phala.com/dstack/overview), supporting Intel TDX, Intel SGX, AMD SEV, and GPU TEE.
 
+**Why Phala + ZK API?** Phala simplifies TEE deployment (containerized apps, one-click deployment), while ZK API adds cryptographic unlinkability that even Phala's infrastructure cannot violate. Together they provide:
+- **Phala**: Hardware isolation, remote attestation, decentralized infrastructure
+- **ZK API**: Payment unlinkability that survives regulatory demands
+
 #### Overview
 
 Phala Network is a trustless cloud infrastructure platform that enables deployment of Docker-based applications into TEE environments in minutes. Phala uses [Dstack](https://github.com/Dstack-TEE/dstack), an open-source TEE SDK and guest OS (Confidential Computing Consortium project under Linux Foundation), to simplify deployment of arbitrary Docker containers into TEE.

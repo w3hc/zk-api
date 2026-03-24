@@ -6,6 +6,33 @@ ZK API is a privacy-preserving system for accessing Claude AI models anonymously
 
 **Key Innovation**: Combines ZK-SNARKs (Groth16) for proving solvency with Rate-Limit Nullifiers for preventing double-spending, all while maintaining complete privacy.
 
+## TEE Deployment: Why This Matters
+
+ZK API is **designed to run in a Trusted Execution Environment (TEE)** such as:
+- AMD SEV-SNP (Secure Encrypted Virtualization)
+- Intel TDX (Trust Domain Extensions)
+- AWS Nitro Enclaves
+- Phala Network (TDX/SGX infrastructure)
+
+### The TEE + ZK Advantage
+
+**Without TEE (session-based approach)**:
+- User pays → Server issues session token → Requests authenticated
+- Server *can* link payments to requests (chooses not to via policy)
+- Vulnerable to regulatory demands: "Show us who made request X"
+
+**With TEE Only**:
+- Server operator cannot read memory (hardware isolation)
+- But the *code* can still correlate payments to requests
+- Regulatory demand: "Your code can link them, so extract that data"
+
+**With TEE + ZK (this system)**:
+- Server operator cannot read memory (TEE isolation)
+- Code *cannot* link payments to requests (ZK nullifiers destroy linkage)
+- Regulatory demand: "We mathematically cannot comply—the system is cryptographically designed to prevent it"
+
+**The complexity is justified**: ZK provides cryptographic unlinkability that survives regulatory pressure, not just operational privacy.
+
 ## Architecture
 
 The system consists of three main layers:
