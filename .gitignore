@@ -63,3 +63,7 @@ circuits/*.sym
 contracts/cache/
 contracts/out/
 contracts/broadcast/
+contracts/lib/
+
+# Notes
+docs/notes/
