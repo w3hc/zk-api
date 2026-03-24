@@ -19,7 +19,9 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:mlkem": "ts-node scripts/test-mlkem-flow.ts",
     "test:store-access": "ts-node scripts/test-store-and-access.ts",
+    "test:snarkjs": "ts-node scripts/test-snarkjs-integration.ts",
     "verify:attestation": "ts-node scripts/verify-attestation.ts",
+    "setup:circuit": "ts-node scripts/setup-trusted-setup.ts",
     "dance": "pnpm format && pnpm lint && pnpm test && pnpm test:e2e && pnpm build && pnpm outdated || true"
   },
   "dependencies": {

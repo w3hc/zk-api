@@ -171,11 +171,92 @@ Signature: [digital_signature]
 
 ## For This Project
 
-When implementing the trusted setup ceremony for this zk-api project:
+### Current Implementation Status: ✅ Development Setup Complete
 
-1. **Development**: Use test parameters with `snarkjs` for rapid iteration
-2. **Testnet**: Perform small ceremony (3-5 participants) to validate process
-3. **Mainnet**: Organize public ceremony with 50+ participants for maximum security
-4. **Maintenance**: Plan for re-ceremonies if circuits are upgraded
+The project now includes an automated trusted setup for development and testing:
 
-See [ZK_IMPLEMENTATION_SUMMARY.md](../ZK_IMPLEMENTATION_SUMMARY.md) for integration with the broader system architecture.
+**Script:** `npm run setup:circuit`
+
+This automated script ([scripts/setup-trusted-setup.ts](../scripts/setup-trusted-setup.ts)):
+1. Compiles the test circuit
+2. Generates Powers of Tau (2^12 constraints)
+3. Performs single-party contribution
+4. Generates proving and verification keys
+5. Verifies the final parameters
+
+**Generated Files** (in `circuits/build/`):
+- `api_credit_proof_test_final.zkey` - Proving key
+- `verification_key.json` - Verification key
+- `pot12_final.ptau` - Powers of Tau parameters
+
+**Current Status:**
+- ✅ Development setup: Automated single-contributor ceremony
+- ✅ Test circuit: Minimal circuit for fast iteration (~676 constraints)
+- ⚠️ **NOT secure for production** - single participant only
+- ⚠️ Automated entropy (not airgapped)
+
+### Production Deployment Roadmap
+
+When implementing the trusted setup ceremony for production:
+
+1. **Development** (Current):
+   - ✅ Automated test setup with `npm run setup:circuit`
+   - ✅ Test circuit with fast proving/verification
+   - ✅ Falls back to mock mode if setup missing
+
+2. **Testnet** (Next):
+   - Small ceremony (3-5 participants) to validate process
+   - Use test circuit or simplified production circuit
+   - Practice ceremony coordination and verification
+   - Document ceremony process
+
+3. **Mainnet** (Production):
+   - Organize public ceremony with 50+ participants for maximum security
+   - Use full production circuit ([api_credit_proof.circom](../circuits/api_credit_proof.circom))
+   - Generate larger Powers of Tau (2^16 or higher)
+   - Multiple rounds of contributions
+   - At least 1 airgapped contributor
+   - Publish ceremony transcript and final parameter hashes
+
+4. **Maintenance**:
+   - Plan for re-ceremonies if circuits are upgraded
+   - Version control for all ceremony artifacts
+   - Keep historical verification keys for old proofs
+
+### Quick Start (Development)
+
+```bash
+# Complete automated setup
+npm run setup:circuit
+
+# Verify setup completed
+ls circuits/build/*.zkey
+ls circuits/build/verification_key.json
+
+# Build and run server (will use real verification if setup complete)
+npm run build
+npm run start
+```
+
+### Migration to Production Circuit
+
+To migrate from test circuit to production:
+
+1. Update `scripts/setup-trusted-setup.ts`:
+   ```typescript
+   const CIRCUIT_NAME = 'api_credit_proof'; // was 'api_credit_proof_test'
+   ```
+
+2. Generate larger Powers of Tau:
+   ```bash
+   npx snarkjs powersoftau new bn128 16 pot16_0000.ptau
+   # ... (takes ~30min on modern hardware)
+   ```
+
+3. Run multi-party ceremony (see ceremony coordination section above)
+
+4. Update [SnarkjsProofService](../src/zk-api/snarkjs-proof.service.ts) paths
+
+5. Update public signals extraction to match full circuit outputs
+
+See [ZK.md](./ZK.md) for integration with the broader system architecture.

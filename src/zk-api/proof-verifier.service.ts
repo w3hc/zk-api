@@ -4,9 +4,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BlockchainService } from './blockchain.service';
 import { ProofGenService } from './proof-gen.service';
+import { SnarkjsProofService } from './snarkjs-proof.service';
 
 /**
  * Service for verifying ZK-SNARK proofs using Groth16
+ * Now supports real cryptographic verification via snarkjs
  */
 @Injectable()
 export class ProofVerifierService {
@@ -15,6 +17,7 @@ export class ProofVerifierService {
   constructor(
     private readonly blockchainService: BlockchainService,
     private readonly proofGenService: ProofGenService,
+    private readonly snarkjsProofService: SnarkjsProofService,
   ) {}
 
   /**
@@ -121,15 +124,54 @@ export class ProofVerifierService {
       }
     }
 
-    // 3. Use ProofGenService to verify the proof
-    const isValid = this.proofGenService.verifyMockProof(proof, publicInputs);
+    // 3. Try real snarkjs verification if available, otherwise fall back to mock
+    try {
+      const proofData = JSON.parse(proof);
 
-    if (isValid) {
-      this.logger.log('Proof verified successfully');
-    } else {
-      this.logger.warn('Proof verification failed');
+      // Check if snarkjs proof system is available
+      if (this.snarkjsProofService.isAvailable()) {
+        this.logger.debug('Using real snarkjs verification');
+
+        // Construct public signals array from public inputs
+        // Order must match circuit output order
+        const publicSignals = [
+          publicInputs.signalX.replace('0x', ''),
+          publicInputs.idCommitment.replace('0x', ''),
+        ];
+
+        const isValid = await this.snarkjsProofService.verifyProof(
+          proofData,
+          publicSignals,
+        );
+
+        if (isValid) {
+          this.logger.log('Proof verified successfully (cryptographic)');
+        } else {
+          this.logger.warn('Proof verification failed (cryptographic)');
+        }
+
+        return isValid;
+      } else {
+        // Fall back to mock verification
+        this.logger.debug(
+          'Snarkjs not available, using mock verification (dev mode)',
+        );
+        const isValid = this.proofGenService.verifyMockProof(
+          proof,
+          publicInputs,
+        );
+
+        if (isValid) {
+          this.logger.log('Proof verified successfully (mock)');
+        } else {
+          this.logger.warn('Proof verification failed (mock)');
+        }
+
+        return isValid;
+      }
+    } catch (error) {
+      this.logger.error('Failed to verify proof', error);
+      return false;
     }
-
-    return isValid;
   }
 }
