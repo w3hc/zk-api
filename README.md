@@ -202,7 +202,8 @@ Proves four properties:
 | Service | Purpose |
 |---------|---------|
 | **ZkApiService** | Main request orchestrator |
-| **ProofVerifierService** | Groth16 ZK proof verification |
+| **ProofVerifierService** | Groth16 ZK proof verification (real crypto + fallback) |
+| **SnarkjsProofService** | ✨ **NEW**: Real snarkjs cryptographic verification |
 | **NullifierStoreService** | SQLite persistent store for double-spend detection |
 | **EthRateOracleService** | ETH/USD conversion (Kraken API) |
 | **RefundSignerService** | EdDSA refund ticket signing |
@@ -221,14 +222,15 @@ Proves four properties:
 ### API & Usage
 
 - [**API Reference**](docs/API_REFERENCE.md) - Complete REST API documentation with App endpoints
-- [ZK System Guide](docs/ZK.md) - Zero-Knowledge proofs and circuits
+- [**ZK System Guide**](docs/ZK.md) - Zero-Knowledge proofs and circuits (**✨ Updated: Real verification implemented**)
+- [**ZK Proof Completion**](README_ZK_PROOF_COMPLETION.md) - Implementation summary and status
 - [Testing Guide](docs/TESTING_GUIDE.md) - Test procedures
 
 ### Architecture
 
 - [Overview](docs/OVERVIEW.md) - System architecture and design
 - [**SQLite Database**](docs/SQLITE3.md) - Persistent storage, privacy design, and implementation
-- [Trusted Setup Ceremony](docs/TRUSTED_SETUP_CEREMONY.md) - Powers of Tau generation
+- [**Trusted Setup Ceremony**](docs/TRUSTED_SETUP_CEREMONY.md) - Powers of Tau generation (**✨ Automated setup available**)
 
 ## Cost Calculation
 

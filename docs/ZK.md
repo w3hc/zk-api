@@ -87,13 +87,54 @@ This commitment is stored in the Merkle tree anonymity set on-chain, allowing us
 └─────────────────────────────────────────────────────────────┘
 ```
 
+## Implementation Status
+
+### ✅ Completed: Real ZK Proof Verification
+
+The ZK proof system now supports **cryptographically valid Groth16 SNARK verification** using snarkjs.
+
+**Previous (Mock):** Only validated proof JSON structure
+**Current (Real):** Full cryptographic verification with trusted setup
+
+**Key Changes:**
+- New [SnarkjsProofService](../src/zk-api/snarkjs-proof.service.ts) for real proof generation/verification
+- Updated [ProofVerifierService](../src/zk-api/proof-verifier.service.ts) to use cryptographic verification
+- Automated trusted setup script: `npm run setup:circuit`
+- Falls back to mock mode if trusted setup not complete (dev-friendly)
+
+**Files:**
+- Test circuit: [circuits/api_credit_proof_test.circom](../circuits/api_credit_proof_test.circom) (~676 constraints)
+- Production circuit: [circuits/api_credit_proof.circom](../circuits/api_credit_proof.circom) (~12K constraints)
+
 ## ZK Circuit Design
 
-### Main Circuit
+### Test Circuit (Current)
+
+**File**: [circuits/api_credit_proof_test.circom](../circuits/api_credit_proof_test.circom)
+
+A simplified circuit for development and testing:
+
+**Inputs:**
+- `secretKey` (private) - User's secret key
+- `ticketIndex` (private) - Request ticket index
+- `signalX` (public) - RLN signal X component
+- `idCommitmentExpected` (public) - Expected identity commitment
+
+**Outputs:**
+- `nullifier` - Unique request nullifier
+- `signalY` - RLN signal Y component
+- `idCommitment` - Identity commitment
+
+**Performance:**
+- Constraints: ~676 non-linear
+- Proving time: ~100-500ms
+- Verification time: ~5-20ms
+
+### Production Circuit
 
 **File**: [circuits/api_credit_proof.circom](../circuits/api_credit_proof.circom)
 
-The circuit proves four key properties:
+The full circuit proves four key properties:
 
 1. **Membership**: User's identity commitment is in the Merkle tree
 2. **Refund Summation**: All refund tickets are valid (EdDSA signature verification)

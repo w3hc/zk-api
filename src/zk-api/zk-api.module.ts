@@ -8,6 +8,7 @@ import { RefundSignerService } from './refund-signer.service';
 import { BlockchainService } from './blockchain.service';
 import { ProofGenService } from './proof-gen.service';
 import { MerkleTreeService } from './merkle-tree.service';
+import { SnarkjsProofService } from './snarkjs-proof.service';
 
 @Module({
   controllers: [ZkApiController],
@@ -16,6 +17,7 @@ import { MerkleTreeService } from './merkle-tree.service';
     NullifierStoreService,
     ProofVerifierService,
     ProofGenService,
+    SnarkjsProofService,
     EthRateOracleService,
     RefundSignerService,
     BlockchainService,
