@@ -8,7 +8,6 @@ import { AttestationController } from './attestation/attestation.controller';
 import { TeePlatformService } from './attestation/tee-platform.service';
 import { HealthController } from './health/health.controller';
 import { validateEnvironment } from './config/env.validation';
-import { SecretModule } from './secret/secret.module';
 import { AuthModule } from './auth/auth.module';
 import { ZkApiModule } from './zk-api/zk-api.module';
 
@@ -27,7 +26,6 @@ import { ZkApiModule } from './zk-api/zk-api.module';
       },
     ]),
     AuthModule,
-    SecretModule,
     ZkApiModule,
   ],
   controllers: [AppController, AttestationController, HealthController],

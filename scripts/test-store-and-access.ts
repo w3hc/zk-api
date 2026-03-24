@@ -111,7 +111,7 @@ async function testStoreAndAccess() {
   try {
     // Step 1: Get attestation
     console.log('1️⃣  Getting server attestation...');
-    const attestationResponse = await fetch(`${serverUrl}/chest/attestation`);
+    const attestationResponse = await fetch(`${serverUrl}/secret/attestation`);
     if (!attestationResponse.ok) {
       throw new Error(`Attestation failed: ${attestationResponse.status} ${await attestationResponse.text()}`);
     }
@@ -151,7 +151,7 @@ async function testStoreAndAccess() {
 
     // Step 4: Store encrypted secret
     console.log('4️⃣  Storing encrypted secret on server...');
-    const storeResponse = await fetch(`${serverUrl}/chest/store`, {
+    const storeResponse = await fetch(`${serverUrl}/secret/store`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -205,7 +205,7 @@ async function testStoreAndAccess() {
 
     // Step 7: Access secret with SIWE authentication
     console.log('7️⃣  Accessing secret (server-side decryption with SIWE)...');
-    const accessResponse = await fetch(`${serverUrl}/chest/access/${slot}`, {
+    const accessResponse = await fetch(`${serverUrl}/secret/access/${slot}`, {
       method: 'GET',
       headers: {
         'x-siwe-message': Buffer.from(message).toString('base64'),

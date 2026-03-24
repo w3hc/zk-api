@@ -155,7 +155,7 @@ async function testMLKEMWithServer() {
   // Step 1: Get attestation from server
   console.log('1️⃣  Getting server attestation...');
   try {
-    const attestationResponse = await fetch(`${serverUrl}/chest/attestation`);
+    const attestationResponse = await fetch(`${serverUrl}/secret/attestation`);
     if (!attestationResponse.ok) {
       throw new Error(
         `Server returned ${attestationResponse.status}: ${await attestationResponse.text()}`,
@@ -213,7 +213,7 @@ async function testMLKEMWithServer() {
     // For this test, we'll use a dummy Ethereum address
     const dummyAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 
-    const storeResponse = await fetch(`${serverUrl}/chest/store`, {
+    const storeResponse = await fetch(`${serverUrl}/secret/store`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

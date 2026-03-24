@@ -134,12 +134,12 @@ async function testMLKEMFlow() {
   const encrypted = await encryptForTEE(plaintext, attestation.mlkemPublicKey);
   console.log(`  ✅ Encrypted payload ready\n`);
 
-  // Step 4: Client stores encrypted secret (simulating POST /chest/store)
+  // Step 4: Client stores encrypted secret (simulating POST /secret/store)
   console.log('4️⃣  Client: Storing encrypted secret...');
   const slot = crypto.randomBytes(32).toString('hex');
   console.log(`  ✅ Assigned slot: ${slot}\n`);
 
-  // Step 5: Server decrypts secret (simulating GET /chest/access/:slot)
+  // Step 5: Server decrypts secret (simulating GET /secret/access/:slot)
   console.log('5️⃣  Server: Decrypting secret...');
   const decrypted = await decryptPayload(encrypted, privateKeyBase64);
   console.log(`  📝 Decrypted: "${decrypted}"\n`);

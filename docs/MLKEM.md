@@ -1,8 +1,10 @@
 # ML-KEM Quantum-Resistant Encryption
 
+> **Note:** ML-KEM encryption/decryption utilities are available in the codebase (`src/encryption/mlkem-encryption.service.ts`) but the API endpoints are currently not exposed. SIWE authentication (`src/auth/siwe.service.ts`, `src/auth/siwe.guard.ts`) is also available for protecting future endpoints. This documentation is maintained for reference and future use.
+
 ## Overview
 
-ZK API implements **ML-KEM-1024** (Module-Lattice-Based Key-Encapsulation Mechanism) for post-quantum cryptographic security. ML-KEM is standardized by NIST as [FIPS 203](https://csrc.nist.gov/pubs/fips/203/final) and provides security against both classical and quantum computer attacks.
+ZK API includes **ML-KEM-1024** (Module-Lattice-Based Key-Encapsulation Mechanism) for post-quantum cryptographic security. ML-KEM is standardized by NIST as [FIPS 203](https://csrc.nist.gov/pubs/fips/203/final) and provides security against both classical and quantum computer attacks.
 
 ## Table of Contents
 
@@ -97,7 +99,7 @@ const encrypted = await w3pk.mlkemEncrypt(
 const plaintext1 = await w3pk.mlkemDecrypt(encrypted);
 
 // Server can decrypt for operations (with SIWE auth)
-const plaintext2 = await fetch('/chest/access/slot123', {
+const plaintext2 = await fetch('/secret/access/slot123', {
   headers: { 'x-siwe-message': '...', 'x-siwe-signature': '...' }
 });
 ```
@@ -144,75 +146,19 @@ Per-Secret Overhead:
 
 ## API Reference
 
-### Server Endpoints
+> **Note:** The following endpoints are currently not available in the API. This section is maintained for reference.
 
-#### `GET /chest/attestation`
+### Server Endpoints (Not Currently Exposed)
 
-Get TEE attestation with server's ML-KEM public key.
+The ML-KEM encryption endpoints (`/secret/attestation`, `/secret/store`, `/secret/access`) have been removed from the API surface.
 
-**Response:**
-```json
-{
-  "platform": "phala",
-  "report": "base64_tee_signature...",
-  "measurement": "sha256_code_hash...",
-  "timestamp": "2026-03-22T10:30:00.000Z",
-  "mlkemPublicKey": "ZLVMNpXCmEp7vhcylKzGXcx8...",
-  "publicKey": "0xServerAddress..."
-}
-```
+**Available for Future Implementation:**
+- `src/encryption/mlkem-encryption.service.ts` - Complete ML-KEM-1024 encryption/decryption service
+- `src/auth/siwe.service.ts` - SIWE authentication service
+- `src/auth/siwe.guard.ts` - Guard for protecting endpoints with SIWE
+- `src/auth/auth.controller.ts` - Nonce generation endpoint
 
-**CRITICAL**: Clients MUST verify attestation before trusting `mlkemPublicKey`!
-
-#### `POST /chest/store`
-
-Store multi-recipient encrypted secret.
-
-**Request:**
-```json
-{
-  "secret": {
-    "recipients": [
-      {
-        "publicKey": "client_pubkey_base64...",
-        "ciphertext": "client_ciphertext_base64..."
-      },
-      {
-        "publicKey": "server_pubkey_base64...",
-        "ciphertext": "server_ciphertext_base64..."
-      }
-    ],
-    "encryptedData": "aes_encrypted_data_base64...",
-    "iv": "iv_base64...",
-    "authTag": "auth_tag_base64..."
-  },
-  "publicAddresses": ["0xClientAddress..."]
-}
-```
-
-**Response:**
-```json
-{
-  "slot": "05919c62d6a408cb98728c4c929ff0fd..."
-}
-```
-
-#### `GET /chest/access/:slot`
-
-Access secret (server-side decryption).
-
-**Headers:**
-```
-x-siwe-message: base64(siweMessage)
-x-siwe-signature: signatureHex
-```
-
-**Response:**
-```json
-{
-  "secret": "decrypted plaintext"
-}
-```
+These can be re-enabled by creating new controllers that import and use these existing services.
 
 ### Server Service API
 
@@ -267,7 +213,7 @@ const w3pk = createWeb3Passkey();
 await w3pk.login();
 
 // 2. Get server attestation
-const attestation = await fetch('https://vault.example.com/chest/attestation')
+const attestation = await fetch('https://vault.example.com/secret/attestation')
   .then(r => r.json());
 
 // 3. CRITICAL: Verify attestation (future implementation)
@@ -281,7 +227,7 @@ const encrypted = await w3pk.mlkemEncrypt(
 );
 
 // 5. Store encrypted data
-const { slot } = await fetch('https://vault.example.com/chest/store', {
+const { slot } = await fetch('https://vault.example.com/secret/store', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -296,7 +242,7 @@ const plaintext = await w3pk.mlkemDecrypt(encrypted);
 
 // 6b. OR: Server-side decryption (for operations)
 const siweMessage = await w3pk.signInWithEthereum(domain, { uri: origin });
-const { secret } = await fetch(`https://vault.example.com/chest/access/${slot}`, {
+const { secret } = await fetch(`https://vault.example.com/secret/access/${slot}`, {
   headers: {
     'x-siwe-message': Buffer.from(siweMessage.message).toString('base64'),
     'x-siwe-signature': siweMessage.signature
@@ -570,7 +516,7 @@ import { Wallet } from 'ethers';
 
 async function testZkApiMLKEM() {
   // 1. Get server's attestation (includes ML-KEM public key)
-  const attestation = await fetch('http://localhost:3000/chest/attestation')
+  const attestation = await fetch('http://localhost:3000/secret/attestation')
     .then(r => r.json());
 
   console.log('📋 Server Attestation:');
@@ -601,7 +547,7 @@ async function testZkApiMLKEM() {
   console.log(`  Encrypted Data: ${encrypted.encryptedData.substring(0, 32)}...`);
 
   // 4. Store encrypted secret on server
-  const storeResponse = await fetch('http://localhost:3000/chest/store', {
+  const storeResponse = await fetch('http://localhost:3000/secret/store', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -631,7 +577,7 @@ async function testZkApiMLKEM() {
   });
 
   // Access secret via server
-  const accessResponse = await fetch(`http://localhost:3000/chest/access/${slot}`, {
+  const accessResponse = await fetch(`http://localhost:3000/secret/access/${slot}`, {
     headers: {
       'x-siwe-message': Buffer.from(siweMessage.message).toString('base64'),
       'x-siwe-signature': siweMessage.signature,
@@ -662,7 +608,7 @@ pnpm ts-node test-zk-api-mlkem.ts
 ##### Get Attestation
 
 ```bash
-curl http://localhost:3000/chest/attestation | jq
+curl http://localhost:3000/secret/attestation | jq
 ```
 
 Expected response:
@@ -682,7 +628,7 @@ Expected response:
 You'll need to encrypt client-side first using w3pk, then:
 
 ```bash
-curl -X POST http://localhost:3000/chest/store \
+curl -X POST http://localhost:3000/secret/store \
   -H "Content-Type: application/json" \
   -d '{
     "secret": {
@@ -846,7 +792,7 @@ When deployed on Phala, the attestation will include:
 ```typescript
 import { verifyPhalaAttestation } from 'w3pk'; // Future implementation
 
-const attestation = await fetch('https://your-phala-endpoint/chest/attestation')
+const attestation = await fetch('https://your-phala-endpoint/secret/attestation')
   .then(r => r.json());
 
 // Verify attestation before trusting public key
@@ -868,7 +814,7 @@ The complete production flow on Phala:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ 1. Client gets attestation from Phala TEE                   │
-│    GET https://your-app.phala.network/chest/attestation     │
+│    GET https://your-app.phala.network/secret/attestation     │
 │    Response: { platform: "phala", mlkemPublicKey, ... }     │
 └─────────────────────────────────────────────────────────────┘
                            ↓
@@ -891,7 +837,7 @@ The complete production flow on Phala:
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ 4. Client stores encrypted payload                          │
-│    POST /chest/store                                         │
+│    POST /secret/store                                         │
 │    Body: { secret: encrypted, publicAddresses: [...] }      │
 └─────────────────────────────────────────────────────────────┘
                            ↓
@@ -903,7 +849,7 @@ The complete production flow on Phala:
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ 5b. OR: Server decrypts for operations                      │
-│     GET /chest/access/:slot (with SIWE auth)                │
+│     GET /secret/access/:slot (with SIWE auth)                │
 │     Server uses sealed private key to decrypt               │
 │     Returns plaintext for internal operations               │
 └─────────────────────────────────────────────────────────────┘
@@ -977,7 +923,7 @@ The complete production flow on Phala:
 
 **Cause:** Client encrypted with wrong public key or corrupted payload
 
-**Solution:** Verify client is using `mlkemPublicKey` from `/chest/attestation`
+**Solution:** Verify client is using `mlkemPublicKey` from `/secret/attestation`
 
 #### "Server public key not found in recipients list"
 

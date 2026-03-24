@@ -56,7 +56,6 @@ data/
 .tmp
 temp/
 tmp/
-chest.json
 # Circom build artifacts
 circuits/build/
 circuits/*_test.circom
