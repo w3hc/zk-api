@@ -17,6 +17,9 @@ describe('ZkApiService', () => {
   let ethRateOracle: EthRateOracleService;
 
   beforeEach(async () => {
+    // Set test database path
+    process.env.DATA_DIR = ':memory:';
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ZkApiService,
@@ -57,6 +60,9 @@ describe('ZkApiService', () => {
     nullifierStore = module.get<NullifierStoreService>(NullifierStoreService);
     proofVerifier = module.get<ProofVerifierService>(ProofVerifierService);
     ethRateOracle = module.get<EthRateOracleService>(EthRateOracleService);
+
+    // Initialize database
+    await module.init();
   });
 
   afterEach(() => {

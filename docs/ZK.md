@@ -186,7 +186,7 @@ function slashPolicyViolation(bytes32 nullifier, bytes32 idCommitment) external 
 | **ZKProofService** | Full snarkjs integration for Groth16 proofs | [src/zk-api/zkproof.service.ts](../src/zk-api/zkproof.service.ts) |
 | **BlockchainService** | Ethers.js contract interface, Merkle tree sync | [src/zk-api/blockchain.service.ts](../src/zk-api/blockchain.service.ts) |
 | **MerkleTreeService** | Off-chain Merkle tree with Poseidon hash | [src/zk-api/merkle-tree.service.ts](../src/zk-api/merkle-tree.service.ts) |
-| **NullifierStoreService** | Tracks used nullifiers (in-memory) | [src/zk-api/nullifier-store.service.ts](../src/zk-api/nullifier-store.service.ts) |
+| **NullifierStoreService** | Tracks used nullifiers (SQLite persistent storage) | [src/zk-api/nullifier-store.service.ts](../src/zk-api/nullifier-store.service.ts) |
 | **EthRateOracleService** | Fetches ETH/USD rates from Kraken | [src/zk-api/eth-rate-oracle.service.ts](../src/zk-api/eth-rate-oracle.service.ts) |
 | **RefundSignerService** | Signs refund tickets with EdDSA | [src/zk-api/refund-signer.service.ts](../src/zk-api/refund-signer.service.ts) |
 
@@ -460,7 +460,7 @@ circom api_credit_proof.circom --r1cs --wasm --sym
 ### ⚠️ TODO for Production
 
 - [ ] Complete trusted setup ceremony (Powers of Tau, proving/verification keys)
-- [ ] Replace in-memory nullifier store with Redis/PostgreSQL
+- [x] Replace in-memory nullifier store with persistent database (SQLite)
 - [ ] Implement proper key management (HSM/KMS) for EdDSA signing key
 - [ ] Add event listener for on-chain Deposit events
 - [ ] Deploy contract to testnet/mainnet

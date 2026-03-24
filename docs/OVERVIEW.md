@@ -96,7 +96,7 @@ The backend orchestrates proof verification, API execution, and refund signing:
 |---------|------|---------|
 | **ZkApiService** | [`zk-api.service.ts`](../src/zk-api/zk-api.service.ts) | Main request orchestrator |
 | **ProofVerifierService** | [`proof-verifier.service.ts`](../src/zk-api/proof-verifier.service.ts) | Groth16 proof verification using snarkjs |
-| **NullifierStoreService** | [`nullifier-store.service.ts`](../src/zk-api/nullifier-store.service.ts) | In-memory store for used nullifiers (double-spend prevention) |
+| **NullifierStoreService** | [`nullifier-store.service.ts`](../src/zk-api/nullifier-store.service.ts) | SQLite persistent store for used nullifiers (double-spend prevention) |
 | **RefundSignerService** | [`refund-signer.service.ts`](../src/zk-api/refund-signer.service.ts) | EdDSA signing of refund tickets |
 | **EthRateOracleService** | [`eth-rate-oracle.service.ts`](../src/zk-api/eth-rate-oracle.service.ts) | ETH/USD price from Kraken API |
 | **BlockchainService** | [`blockchain.service.ts`](../src/zk-api/blockchain.service.ts) | Ethereum contract interactions (read-only in current version) |
@@ -317,7 +317,7 @@ The server signs refund tickets with EdDSA (verifiable in ZK circuits):
 ### ⚠️ TODO for Production
 
 - [ ] Complete trusted setup ceremony (Powers of Tau)
-- [ ] Replace in-memory nullifier store with Redis/PostgreSQL
+- [x] Replace in-memory nullifier store with persistent database (SQLite)
 - [ ] Implement HSM/KMS for EdDSA signing key
 - [ ] Add event listener for on-chain Deposit events
 - [ ] Deploy contract to mainnet
@@ -325,6 +325,13 @@ The server signs refund tickets with EdDSA (verifiable in ZK circuits):
 - [ ] Rate limiting per IP/nullifier
 - [ ] Gas optimization
 - [ ] MEV protection for slashing transactions
+
+### 📚 Documentation
+
+- [SQLite Database Implementation](./SQLITE3.md) - Storage architecture and privacy design
+- [ZK Circuits Guide](./ZK.md) - Zero-knowledge proof circuits
+- [API Reference](./API_REFERENCE.md) - Endpoint documentation
+- [Testing Guide](./TESTING_GUIDE.md) - Test procedures
 
 ## References
 

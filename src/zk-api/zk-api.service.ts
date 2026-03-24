@@ -85,7 +85,7 @@ export class ZkApiService {
     }
 
     // 3. Store nullifier to prevent reuse
-    this.nullifierStore.set(req.nullifier, req.signal, req.payload);
+    this.nullifierStore.set(req.nullifier, req.signal);
 
     // 4. Execute Claude API request
     const response = await this.executeClaudeRequest(req.payload, model);

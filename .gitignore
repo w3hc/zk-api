@@ -46,6 +46,9 @@ lerna-debug.log*
 # TEE secrets
 secrets/
 
+# Database files
+data/
+
 # Temp files
 *.swp
 *.swo

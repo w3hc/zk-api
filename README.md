@@ -70,6 +70,9 @@ cd zk-api
 # Install dependencies
 pnpm install
 
+# Install Foundry contract deps
+forge install
+
 # Setup environment
 cp .env.template .env.local
 
@@ -200,7 +203,7 @@ Proves four properties:
 |---------|---------|
 | **ZkApiService** | Main request orchestrator |
 | **ProofVerifierService** | Groth16 ZK proof verification |
-| **NullifierStoreService** | Double-spend detection |
+| **NullifierStoreService** | SQLite persistent store for double-spend detection |
 | **EthRateOracleService** | ETH/USD conversion (Kraken API) |
 | **RefundSignerService** | EdDSA refund ticket signing |
 | **BlockchainService** | Ethereum contract interaction |
@@ -224,6 +227,7 @@ Proves four properties:
 ### Architecture
 
 - [Overview](docs/OVERVIEW.md) - System architecture and design
+- [**SQLite Database**](docs/SQLITE3.md) - Persistent storage, privacy design, and implementation
 - [Trusted Setup Ceremony](docs/TRUSTED_SETUP_CEREMONY.md) - Powers of Tau generation
 
 ## Cost Calculation

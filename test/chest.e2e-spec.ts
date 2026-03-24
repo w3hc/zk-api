@@ -10,6 +10,7 @@ describe('Chest Endpoints (e2e)', () => {
     // Set test environment variables
     process.env.NODE_ENV = 'test';
     process.env.KMS_URL = 'http://localhost:3001';
+    process.env.DATA_DIR = ':memory:';
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
