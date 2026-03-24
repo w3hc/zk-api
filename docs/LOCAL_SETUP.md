@@ -31,13 +31,15 @@ Edit `.env.local` and configure:
 NODE_ENV=development
 KMS_URL=https://your-kms.example.com/release
 
-# ML-KEM-1024 Admin Keypair (quantum-resistant encryption)
-ADMIN_MLKEM_PUBLIC_KEY=<your-public-key>
-ADMIN_MLKEM_PRIVATE_KEY=<your-private-key>
-
 # Example app secret — replace with whatever your API needs
 MY_API_KEY=<your-api-key>
+
+# Optional: ML-KEM-1024 Admin Keypair (for future ML-KEM endpoints)
+# ADMIN_MLKEM_PUBLIC_KEY=<your-public-key>
+# ADMIN_MLKEM_PRIVATE_KEY=<your-private-key>
 ```
+
+**Note:** ML-KEM encryption utilities are available in `src/encryption/mlkem-encryption.service.ts` but not currently exposed via endpoints.
 
 ### 2. Generate TLS Certificates
 
@@ -49,28 +51,6 @@ openssl req -x509 -newkey rsa:4096 -keyout secrets/tls.key -out secrets/tls.cert
 ```
 
 **Note**: The application uses HTTPS in development mode and HTTP in production (where Phala handles TLS termination).
-
-### 3. Generate ML-KEM Keypair
-
-Generate quantum-resistant ML-KEM-1024 keypairs:
-
-```bash
-pnpm ts-node scripts/generate-admin-keypair.ts
-```
-
-This will output base64-encoded keys. Copy them to your `.env` file:
-
-```bash
-ADMIN_MLKEM_PUBLIC_KEY=<generated-public-key>
-ADMIN_MLKEM_PRIVATE_KEY=<generated-private-key>
-```
-
-**Security Notes**:
-- Keep the private key SECRET
-- The public key is exposed via `/chest/attestation` endpoint
-- Clients encrypt data with the public key
-- Only your server can decrypt with the private key
-- ML-KEM-1024 provides quantum-resistant encryption (NIST FIPS 203)
 
 ## Running the Application
 
@@ -123,9 +103,9 @@ Key endpoints:
 
 - `GET /` - Swagger UI documentation
 - `GET /health` - Health check
-- `GET /chest/attestation` - TEE attestation and public key
-- `POST /chest/store` - Store encrypted data
-- `POST /chest/access` - Access encrypted data
+- `POST /zk-api/request` - Submit anonymous Claude API request
+- `POST /zk-api/redeem-refund` - Redeem refund ticket
+- `GET /zk-api/server-pubkey` - Get server's EdDSA public key
 
 See [API_REFERENCE.md](./API_REFERENCE.md) for complete endpoint documentation.
 
@@ -203,7 +183,7 @@ zk-api/
 │   ├── main.ts              # Application entry point
 │   ├── app.module.ts        # Root module
 │   ├── config/              # Configuration services
-│   ├── chest/               # Encrypted data storage endpoints
+│   ├── zk-api/              # ZK proof endpoints
 │   ├── auth/                # Authentication (SIWE)
 │   ├── filters/             # Exception filters
 │   └── logging/             # Custom loggers
@@ -271,14 +251,6 @@ mkdir -p secrets
 openssl req -x509 -newkey rsa:4096 -keyout secrets/tls.key -out secrets/tls.cert -days 365 -nodes -subj "/CN=localhost"
 ```
 
-### ML-KEM key errors
-
-Ensure your `.env` file has valid base64-encoded keys. Regenerate if needed:
-
-```bash
-pnpm ts-node scripts/generate-admin-keypair.ts
-```
-
 ### TypeScript compilation errors
 
 Check TypeScript version and rebuild:
@@ -293,9 +265,8 @@ pnpm build
 After running locally:
 
 1. **Test the API**: Use Swagger UI or curl to test endpoints
-2. **Review security**: See [SIWE.md](./SIWE.md) for authentication
-3. **Client encryption**: See [CLIENT_ENCRYPTION.md](./CLIENT_ENCRYPTION.md) for encrypting data
-4. **Deploy**: See [DOCKER.md](./DOCKER.md) or [PHALA_CONFIG.md](./PHALA_CONFIG.md) for deployment
+2. **Review ZK system**: See [ZK.md](./ZK.md) for the zero-knowledge proof system
+3. **Deploy**: See [DOCKER.md](./DOCKER.md) or [PHALA_CONFIG.md](./PHALA_CONFIG.md) for deployment
 
 ## Related Documentation
 
@@ -303,5 +274,4 @@ After running locally:
 - [Docker Setup](./DOCKER.md) - Run with Docker
 - [Phala Deployment](./PHALA_CONFIG.md) - Deploy to Phala Cloud TEE
 - [API Reference](./API_REFERENCE.md) - Complete API documentation
-- [Client Encryption](./CLIENT_ENCRYPTION.md) - How to encrypt data for the API
-- [SIWE Authentication](./SIWE.md) - Ethereum wallet authentication
+- [ZK System Guide](./ZK.md) - Zero-knowledge proof system

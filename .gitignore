@@ -46,6 +46,9 @@ lerna-debug.log*
 # TEE secrets
 secrets/
 
+# Database files
+data/
+
 # Temp files
 *.swp
 *.swo
@@ -53,7 +56,6 @@ secrets/
 .tmp
 temp/
 tmp/
-chest.json
 # Circom build artifacts
 circuits/build/
 circuits/*_test.circom
@@ -63,3 +65,7 @@ circuits/*.sym
 contracts/cache/
 contracts/out/
 contracts/broadcast/
+contracts/lib/
+
+# Notes
+docs/notes/

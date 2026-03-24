@@ -281,7 +281,7 @@ if (process.env.KMS_URL && !process.env.ADMIN_MLKEM_PUBLIC_KEY) {
 
 The application uses ML-KEM-1024 (NIST FIPS 203) for quantum-resistant encryption:
 
-- **Public key**: Exposed via `/chest/attestation` endpoint
+- **Public key**: Exposed via `/secret/attestation` endpoint
 - **Private key**: Kept secret inside the TEE, never exposed
 - **Security level**: NIST Level 5 (256-bit classical security)
 - **Key sizes**: 1568 bytes (public), 3168 bytes (private)

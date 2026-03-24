@@ -129,7 +129,7 @@ AMD Secure Encrypted Virtualization - Secure Nested Paging provides VM-level iso
 
 ```bash
 # Get attestation report
-curl -k https://your-server:443/chest/attestation > attestation.json
+curl -k https://your-server:443/secret/attestation > attestation.json
 
 # Extract and verify the report
 cat attestation.json | jq -r '.report' | base64 -d > report.bin
@@ -246,7 +246,7 @@ Intel Trust Domain Extensions provides VM-level isolation with hardware-enforced
 
 ```bash
 # Get attestation report
-curl -k https://your-server:443/chest/attestation > attestation.json
+curl -k https://your-server:443/secret/attestation > attestation.json
 
 # Verify the platform is TDX
 cat attestation.json | jq -r '.platform'
@@ -414,7 +414,7 @@ AWS Nitro Enclaves provide isolated compute environments on EC2 instances.
 
 ```bash
 # Get attestation report
-curl https://your-server:443/chest/attestation > attestation.json
+curl https://your-server:443/secret/attestation > attestation.json
 
 # Extract and parse attestation document (CBOR format)
 cat attestation.json | jq -r '.report' | base64 -d > attestation.cbor
@@ -447,6 +447,10 @@ EOF
 ### Phala Network (Intel TDX/SGX)
 
 [Phala Network](https://phala.network/) provides TEE-as-a-Service infrastructure through [Phala Cloud](https://cloud.phala.network/) and [Dstack](https://docs.phala.com/dstack/overview), supporting Intel TDX, Intel SGX, AMD SEV, and GPU TEE.
+
+**Why Phala + ZK API?** Phala simplifies TEE deployment (containerized apps, one-click deployment), while ZK API adds cryptographic unlinkability that even Phala's infrastructure cannot violate. Together they provide:
+- **Phala**: Hardware isolation, remote attestation, decentralized infrastructure
+- **ZK API**: Payment unlinkability that survives regulatory demands
 
 #### Overview
 
@@ -694,7 +698,7 @@ Configure your Key Management Service to release secrets only after attestation 
 
 ```bash
 # Check if attestation is working
-curl -k https://your-server:443/chest/attestation | jq .
+curl -k https://your-server:443/secret/attestation | jq .
 
 # Expected response:
 # {
@@ -931,7 +935,7 @@ phala cvms list                 # List your CVMs
 # See: https://docs.phala.com/phala-cloud/phala-cloud-cli/start-from-cloud-cli
 
 # ZK API Application
-curl -k https://localhost:443/chest/attestation
+curl -k https://localhost:443/secret/attestation
 curl -k https://localhost:443/health
 NODE_ENV=production node dist/main.js
 

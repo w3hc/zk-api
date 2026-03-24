@@ -13,19 +13,35 @@ https://your-domain.com  (production)
 
 ## Table of Contents
 
-- [App Endpoints](#app-endpoints)
-  - [POST /zk-api/request](#post-zk-apirequest)
-  - [POST /zk-api/redeem-refund](#post-zk-apiredeem-refund)
-  - [GET /zk-api/server-pubkey](#get-zk-apiserver-pubkey)
-- [Authentication Endpoints](#authentication-endpoints)
-  - [POST /auth/nonce](#post-authnonce)
-- [Health Check Endpoints](#health-check-endpoints)
-  - [GET /health](#get-health)
-  - [GET /health/ready](#get-healthready)
-  - [GET /health/live](#get-healthlive)
-- [Error Responses](#error-responses)
-- [Protocol Flow](#protocol-flow)
-- [Client Implementation Guide](#client-implementation-guide)
+- [ZK API Reference](#zk-api-reference)
+  - [Base URL](#base-url)
+  - [Table of Contents](#table-of-contents)
+  - [App Endpoints](#app-endpoints)
+    - [POST /zk-api/request](#post-zk-apirequest)
+    - [POST /zk-api/redeem-refund](#post-zk-apiredeem-refund)
+    - [GET /zk-api/server-pubkey](#get-zk-apiserver-pubkey)
+  - [Available for Future Implementation](#available-for-future-implementation)
+  - [Health Check Endpoints](#health-check-endpoints)
+    - [GET /health](#get-health)
+    - [GET /health/ready](#get-healthready)
+    - [GET /health/live](#get-healthlive)
+  - [Error Responses](#error-responses)
+  - [Protocol Flow](#protocol-flow)
+    - [Complete Request Flow](#complete-request-flow)
+  - [Client Implementation Guide](#client-implementation-guide)
+    - [Prerequisites](#prerequisites)
+    - [1. Generate Identity](#1-generate-identity)
+    - [2. Deposit to Smart Contract](#2-deposit-to-smart-contract)
+    - [3. Generate ZK Proof](#3-generate-zk-proof)
+    - [4. Make API Request](#4-make-api-request)
+    - [5. Redeem Refund Tickets](#5-redeem-refund-tickets)
+  - [Cost Calculation](#cost-calculation)
+    - [Claude API Pricing (March 2026)](#claude-api-pricing-march-2026)
+    - [Example Calculations](#example-calculations)
+  - [Security Best Practices](#security-best-practices)
+  - [Support](#support)
+  - [References](#references)
+  - [License](#license)
 
 ---
 
@@ -247,34 +263,14 @@ curl -k https://localhost:3000/zk-api/server-pubkey
 
 ---
 
-## Authentication Endpoints
+## Available for Future Implementation
 
-### POST /auth/nonce
+The following endpoints have been removed from the API but their underlying utilities remain in the codebase:
 
-Generate a SIWE (Sign-In with Ethereum) nonce for authentication.
+- **ML-KEM Encryption Endpoints** (`/secret/attestation`, `/secret/store`, `/secret/access`) - The `MlKemEncryptionService` is still available in `src/encryption/` for future implementation
+- **Authentication Endpoint** (`POST /auth/nonce`) - The SIWE authentication service and guard are still available in `src/auth/` for future implementation
 
-**Note:** Currently used for legacy Chest API endpoints. Not required for ZK API endpoints.
-
-**Authentication:** None
-
-**Response:**
-
-```typescript
-{
-  nonce: string;  // Random nonce (single-use, expires in 5 minutes)
-}
-```
-
-**Example:**
-
-```bash
-curl -k -X POST https://localhost:3000/auth/nonce
-
-# Response
-{
-  "nonce": "a1b2c3d4e5f67890"
-}
-```
+These can be re-enabled by creating new controllers that use the existing services.
 
 ---
 

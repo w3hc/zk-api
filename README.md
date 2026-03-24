@@ -13,9 +13,11 @@ See the [ZK API Usage Credits: LLMs and Beyond](https://ethresear.ch/t/zk-api-us
 - **Anonymous API Requests** - Use Claude AI without linking requests to your identity
 - **Zero-Knowledge Proofs** - Groth16 ZK-SNARKs prove solvency without revealing balance
 - **Rate-Limit Nullifiers (RLN)** - Cryptographic primitive prevents double-spending while preserving privacy
+- **TEE Deployment** - Runs in Trusted Execution Environments (AMD SEV-SNP, Intel TDX, AWS Nitro, Phala Network)
 - **Automatic Refunds** - Overpayment is refunded with cryptographically signed tickets
 - **Ethereum Integration** - Smart contract manages deposits, withdrawals, and slashing
 - **Double-Spend Protection** - Reusing tickets reveals your secret key and triggers automatic slashing
+- **Post-Quantum Encryption** - ML-KEM (CRYSTALS-Kyber) protects long-term secrets
 
 ### How It Works
 
@@ -32,6 +34,23 @@ See the [ZK API Usage Credits: LLMs and Beyond](https://ethresear.ch/t/zk-api-us
 - **Balance Privacy** - ZK proofs hide your actual balance
 - **Cryptographic Enforcement** - No trusted parties required
 - **Anonymity Set** - You're indistinguishable within all depositors
+- **TEE Isolation** - Server operator cannot read memory or observe request contents
+- **Cryptographic Unlinkability** - Even the TEE code cannot link payments to requests
+
+### Why TEE + ZK?
+
+**The critique**: "Session tokens are simpler—why use ZK?"
+
+**The answer**: ZK API runs in a TEE. The combination provides cryptographic guarantees that session-based systems cannot:
+
+| Approach | Server Can Track? | Regulator Can Compel? | Quantum Secure? |
+|----------|------------------|----------------------|-----------------|
+| **Session Tokens** | Yes (chooses not to) | Yes | No |
+| **TEE Only** | No (encrypted memory) | Yes (code can link) | No |
+| **TEE + ZK** | No (encrypted memory) | **No (cryptographically impossible)** | No |
+| **TEE + ZK + ML-KEM** | No | No | **Yes** |
+
+When regulators demand "show us who paid for request X", the system **mathematically cannot answer**—the linkage is cryptographically destroyed, not just policy-protected.
 
 ## Quick Start
 
@@ -50,6 +69,9 @@ cd zk-api
 
 # Install dependencies
 pnpm install
+
+# Install Foundry contract deps
+forge install
 
 # Setup environment
 cp .env.template .env.local
@@ -181,7 +203,7 @@ Proves four properties:
 |---------|---------|
 | **ZkApiService** | Main request orchestrator |
 | **ProofVerifierService** | Groth16 ZK proof verification |
-| **NullifierStoreService** | Double-spend detection |
+| **NullifierStoreService** | SQLite persistent store for double-spend detection |
 | **EthRateOracleService** | ETH/USD conversion (Kraken API) |
 | **RefundSignerService** | EdDSA refund ticket signing |
 | **BlockchainService** | Ethereum contract interaction |
@@ -191,9 +213,10 @@ Proves four properties:
 
 ### Setup & Deployment
 
-- [Local Setup](docs/LOCAL_SETUP.md) - Run without Docker
+- [Local Setup](docs/LOCAL_SETUP.md) - Run without Docker (development only)
 - [Docker Setup](docs/DOCKER.md) - Docker development environment
-- [Phala Deployment](docs/PHALA_CONFIG.md) - Deploy to Phala Cloud TEE
+- [**TEE Deployment**](docs/TEE_SETUP.md) - Deploy to AMD SEV-SNP, Intel TDX, AWS Nitro, or Phala Network (**recommended for production**)
+- [Phala Config](docs/PHALA_CONFIG.md) - Phala Cloud specific configuration
 
 ### API & Usage
 
@@ -204,6 +227,7 @@ Proves four properties:
 ### Architecture
 
 - [Overview](docs/OVERVIEW.md) - System architecture and design
+- [**SQLite Database**](docs/SQLITE3.md) - Persistent storage, privacy design, and implementation
 - [Trusted Setup Ceremony](docs/TRUSTED_SETUP_CEREMONY.md) - Powers of Tau generation
 
 ## Cost Calculation
