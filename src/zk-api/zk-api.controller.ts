@@ -66,7 +66,7 @@ export class ZkApiController {
       },
     },
   })
-  getServerPublicKey(): { x: string; y: string } {
+  async getServerPublicKey(): Promise<{ x: string; y: string }> {
     return this.zkApiService.getServerPublicKey();
   }
 

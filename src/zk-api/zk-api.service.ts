@@ -99,7 +99,7 @@ export class ZkApiService {
 
     // 6. Generate refund ticket
     const refundValue = BigInt(req.maxCost) - actualCost;
-    const refundTicket = this.refundSigner.signRefund({
+    const refundTicket = await this.refundSigner.signRefund({
       nullifier: req.nullifier,
       value: refundValue.toString(),
       timestamp: Date.now(),
@@ -246,7 +246,7 @@ export class ZkApiService {
   /**
    * Get server's public key for client-side signature verification
    */
-  getServerPublicKey(): { x: string; y: string } {
+  async getServerPublicKey(): Promise<{ x: string; y: string }> {
     return this.refundSigner.getPublicKey();
   }
 }
