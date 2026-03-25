@@ -89,9 +89,14 @@ Generate a secret key and deposit ETH:
 SECRET_KEY="0x$(openssl rand -hex 32)"
 echo "Secret Key (KEEP SECRET): $SECRET_KEY"
 
-# Calculate identity commitment
-ID_COMMITMENT=$(cast keccak "$SECRET_KEY")
-echo "Identity Commitment: $ID_COMMITMENT"
+# Calculate identity commitment using Poseidon hash
+# NOTE: In production, use circomlibjs to compute Poseidon(secretKey)
+# For testing, you can use the contract's hash or compute with circomlibjs
+# This example is simplified - actual implementation needs Poseidon hash
+echo "⚠️  Identity Commitment must be computed using Poseidon hash"
+echo "   Use circomlibjs or call PoseidonHasher.hash() from contract"
+echo "   Example: poseidon = require('circomlibjs').buildPoseidon()"
+echo "            ID_COMMITMENT = poseidon.F.toString(poseidon([secretKey]))"
 
 # Deposit 0.2 ETH (0.1 RLN + 0.1 Policy)
 cast send 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 \

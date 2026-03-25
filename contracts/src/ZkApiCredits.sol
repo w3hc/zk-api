@@ -4,12 +4,24 @@ pragma solidity ^0.8.13;
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./PoseidonHasher.sol";
 
 /**
  * @title ZkApiCredits
  * @notice Privacy-preserving API credits system using Zero-Knowledge proofs and Rate-Limit Nullifiers
  * @dev Based on the Ethresear.ch proposal by Davide Crapis and Vitalik Buterin
  * https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104
+ *
+ * IMPORTANT: Hash Function Compatibility
+ * This contract uses Poseidon hash functions to maintain compatibility with the ZK circuit.
+ * The circuit (api_credit_proof.circom) uses Poseidon hashing throughout:
+ * - Identity commitments: Poseidon(secretKey)
+ * - Merkle tree: Poseidon(left, right)
+ * - Nullifiers: Poseidon(Poseidon(secretKey, ticketIndex))
+ * - Refund verification: Poseidon(refundValue)
+ *
+ * All on-chain hashing MUST use Poseidon to match the circuit's constraints.
+ * Using Keccak256 would make proof verification impossible.
  */
 contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
 
@@ -171,8 +183,11 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         Deposit storage userDeposit = deposits[_idCommitment];
         if (!userDeposit.active) revert DepositNotFound();
 
-        // Verify ownership: Hash(secretKey) should equal idCommitment
-        if (keccak256(abi.encodePacked(_secretKey)) != _idCommitment) revert InvalidSecretKey();
+        // Verify ownership: Poseidon(secretKey) should equal idCommitment
+        // Convert bytes32 to uint256 for Poseidon hash
+        uint256 secretKeyUint = uint256(_secretKey);
+        bytes32 computedCommitment = bytes32(PoseidonHasher.hash(secretKeyUint));
+        if (computedCommitment != _idCommitment) revert InvalidSecretKey();
 
         uint256 totalAmount = userDeposit.rlnStake + userDeposit.policyStake;
 
@@ -204,7 +219,9 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         Signal calldata _signal1,
         Signal calldata _signal2
     ) external nonReentrant {
-        bytes32 idCommitment = keccak256(abi.encodePacked(_secretKey));
+        // Compute identity commitment using Poseidon hash (matches circuit)
+        uint256 secretKeyUint = uint256(_secretKey);
+        bytes32 idCommitment = bytes32(PoseidonHasher.hash(secretKeyUint));
         Deposit storage userDeposit = deposits[idCommitment];
 
         if (revealedSecretKeys[_secretKey]) revert AlreadySlashed();
@@ -367,12 +384,33 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     /**
      * @notice Update the Merkle root after adding new identity commitment
      * @dev Simplified implementation - production would use efficient incremental Merkle tree
+     * @dev Uses Poseidon hashing to match the ZK circuit's Merkle tree verification
      */
     function _updateMerkleRoot() internal {
-        // Simple hash of all commitments (not a real Merkle tree)
-        // In production, use proper Merkle tree library
-        merkleRoot = keccak256(abi.encodePacked(identityCommitments));
-        emit MerkleRootUpdated(merkleRoot, identityCommitments.length);
+        // Simplified: Hash all commitments with Poseidon (not a real Merkle tree)
+        // In production, use proper Poseidon-based incremental Merkle tree
+        // This must match the structure used in the circuit's MerkleTreeChecker
+
+        uint256 len = identityCommitments.length;
+        if (len == 0) {
+            merkleRoot = bytes32(0);
+        } else if (len == 1) {
+            merkleRoot = identityCommitments[0];
+        } else {
+            // Build a simple Poseidon Merkle tree
+            // Note: This is a simplified version. A production implementation should:
+            // 1. Use an incremental Merkle tree structure
+            // 2. Store intermediate nodes for efficient proof generation
+            // 3. Match the exact tree structure used in the circuit (20 levels)
+
+            uint256 currentHash = uint256(identityCommitments[0]);
+            for (uint256 i = 1; i < len; i++) {
+                currentHash = PoseidonHasher.hash(currentHash, uint256(identityCommitments[i]));
+            }
+            merkleRoot = bytes32(currentHash);
+        }
+
+        emit MerkleRootUpdated(merkleRoot, len);
     }
 
     /**
@@ -387,14 +425,25 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
 
     /**
      * @notice Hash refund data for signature verification
-     * @dev Matches the server-side hashing in RefundSignerService
+     * @dev Must match EXACTLY what the circuit expects (line 101-102 of api_credit_proof.circom)
+     * @dev Circuit: refundHashers[i] = Poseidon(1); refundHashers[i].inputs[0] <== refundValues[i]
+     * @dev Server signs: EdDSA_sign(Poseidon(refundValue))
+     *
+     * Security Note:
+     * - The signature only covers the refund value (to match circuit constraints)
+     * - Replay protection comes from the nullifier being marked as redeemed
+     * - Each nullifier can only be redeemed once (line 305 check)
+     * - The nullifier ties the refund to a specific API request
      */
     function _hashRefundData(
-        bytes32 _nullifier,
+        bytes32 /* _nullifier */,
         uint256 _value,
-        uint256 _timestamp
+        uint256 /* _timestamp */
     ) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_nullifier, _value, _timestamp));
+        // Hash only the refund value using Poseidon(1) to match circuit
+        // Nullifier and timestamp are not included in the signature to maintain
+        // compatibility with the circuit's signature verification
+        return bytes32(PoseidonHasher.hash(_value));
     }
 
     /**

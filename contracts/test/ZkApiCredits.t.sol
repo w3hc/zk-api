@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "../src/ZkApiCredits.sol";
+import "../src/PoseidonHasher.sol";
 
 contract ZkApiCreditsTest is Test {
     ZkApiCredits public zkApi;
@@ -56,14 +57,17 @@ contract ZkApiCreditsTest is Test {
         user2 = makeAddr("user2");
         slasher = makeAddr("slasher");
 
-        // Deploy contract
-        zkApi = new ZkApiCredits(server, MIN_RLN_STAKE, MIN_POLICY_STAKE);
+        // Deploy contract with dummy server public key
+        bytes32 serverPubKeyX = bytes32(uint256(1));
+        bytes32 serverPubKeyY = bytes32(uint256(2));
+        zkApi = new ZkApiCredits(server, MIN_RLN_STAKE, MIN_POLICY_STAKE, serverPubKeyX, serverPubKeyY);
 
-        // Generate test identity commitments
+        // Generate test identity commitments using Poseidon (matching circuit)
         secretKey1 = keccak256(abi.encodePacked("secret1"));
         secretKey2 = keccak256(abi.encodePacked("secret2"));
-        idCommitment1 = keccak256(abi.encodePacked(secretKey1));
-        idCommitment2 = keccak256(abi.encodePacked(secretKey2));
+        // Use Poseidon hash: idCommitment = Poseidon(secretKey)
+        idCommitment1 = bytes32(PoseidonHasher.hash(uint256(secretKey1)));
+        idCommitment2 = bytes32(PoseidonHasher.hash(uint256(secretKey2)));
 
         // Fund test users
         vm.deal(user1, 10 ether);
