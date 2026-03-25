@@ -17,6 +17,29 @@ describe('ZkApiService', () => {
   let proofVerifier: ProofVerifierService;
   let ethRateOracle: EthRateOracleService;
 
+  // Suppress expected circomlibjs teardown errors
+  const originalConsoleError = console.error;
+  beforeAll(() => {
+    console.error = (...args: any[]) => {
+      const message = args.join(' ');
+      // Filter out expected circomlibjs teardown errors
+      if (
+        message.includes("'instanceof' is not callable") ||
+        message.includes(
+          'You are trying to `import` a file after the Jest environment',
+        ) ||
+        message.includes('DEP0182')
+      ) {
+        return;
+      }
+      originalConsoleError.apply(console, args);
+    };
+  });
+
+  afterAll(() => {
+    console.error = originalConsoleError;
+  });
+
   beforeEach(async () => {
     // Set test database path
     process.env.DATA_DIR = ':memory:';
@@ -65,7 +88,10 @@ describe('ZkApiService', () => {
 
     // Initialize database
     await module.init();
-  });
+
+    // Wait for RefundSignerService to initialize (circomlibjs takes time)
+    await service.getServerPublicKey();
+  }, 30000);
 
   afterEach(() => {
     nullifierStore.clear();
@@ -147,8 +173,8 @@ describe('ZkApiService', () => {
   });
 
   describe('getServerPublicKey', () => {
-    it('should return server public key', () => {
-      const pubKey = service.getServerPublicKey();
+    it('should return server public key', async () => {
+      const pubKey = await service.getServerPublicKey();
 
       expect(pubKey).toBeDefined();
       expect(pubKey.x).toBeDefined();

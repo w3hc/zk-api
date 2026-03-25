@@ -229,7 +229,7 @@ function slashPolicyViolation(bytes32 nullifier, bytes32 idCommitment) external 
 | **MerkleTreeService** | Off-chain Merkle tree with Poseidon hash | [src/zk-api/merkle-tree.service.ts](../src/zk-api/merkle-tree.service.ts) |
 | **NullifierStoreService** | Tracks used nullifiers (SQLite persistent storage) | [src/zk-api/nullifier-store.service.ts](../src/zk-api/nullifier-store.service.ts) |
 | **EthRateOracleService** | Fetches ETH/USD rates from Kraken | [src/zk-api/eth-rate-oracle.service.ts](../src/zk-api/eth-rate-oracle.service.ts) |
-| **RefundSignerService** | Signs refund tickets with EdDSA | [src/zk-api/refund-signer.service.ts](../src/zk-api/refund-signer.service.ts) |
+| **RefundSignerService** | Signs refund tickets with EdDSA (Babyjubjub + Poseidon) | [src/zk-api/refund-signer.service.ts](../src/zk-api/refund-signer.service.ts) |
 
 ### API Endpoints
 
@@ -360,22 +360,39 @@ const poseidon = await buildPoseidon();
 const hash = poseidon([input1, input2, ...]);
 ```
 
-### EdDSA Signatures
+### EdDSA Signatures (Babyjubjub)
 
-Used for refund ticket signing:
+Used for refund ticket signing with circuit-compatible cryptography:
 
 ```typescript
-import { buildEddsa, buildBabyjub } from 'circomlibjs';
+import { buildEddsa, buildBabyjub, buildPoseidon } from 'circomlibjs';
 
 const eddsa = await buildEddsa();
 const babyJub = await buildBabyjub();
+const poseidon = await buildPoseidon();
 
-// Sign
-const signature = eddsa.signPoseidon(privateKey, message);
+// Generate keypair
+const privateKey = Buffer.from(crypto.randomBytes(32));
+const publicKey = eddsa.prv2pub(privateKey);
 
-// Verify
-const isValid = eddsa.verifyPoseidon(message, signature, publicKey);
+// Sign message with Poseidon hash
+const message = poseidon([nullifier, value, timestamp]);
+const signature = eddsa.signPoseidon(privateKey, babyJub.F.e(message));
+
+// Signature contains: { R8: [R8x, R8y], S }
+
+// Verify signature
+const isValid = eddsa.verifyPoseidon(
+  babyJub.F.e(message),
+  signature,
+  publicKey
+);
 ```
+
+**Why Babyjubjub + Poseidon?**
+- **Circuit Efficiency**: SHA256 requires ~25,000 constraints. Babyjubjub EdDSA + Poseidon use only ~1,500 constraints
+- **ZK-Friendly**: Designed specifically for ZK-SNARKs on the BN128 curve
+- **Compatible**: Matches the `EdDSAVerifier` circuit from circomlib used in our ZK proofs
 
 ### Field Arithmetic
 
@@ -492,7 +509,7 @@ circom api_credit_proof.circom --r1cs --wasm --sym
 - [x] Unit tests (267 tests passing)
 - [x] Documentation
 - [x] ETH/USD oracle integration
-- [x] Refund ticket signing (EdDSA)
+- [x] Refund ticket signing (EdDSA with Babyjubjub + Poseidon)
 - [x] RLN cryptographic primitives
 - [x] Merkle tree service
 - [x] Blockchain service
@@ -502,6 +519,7 @@ circom api_credit_proof.circom --r1cs --wasm --sym
 
 - [ ] Complete trusted setup ceremony (Powers of Tau, proving/verification keys)
 - [x] Replace in-memory nullifier store with persistent database (SQLite)
+- [x] Implement proper EdDSA with Babyjubjub curve (circuit-compatible)
 - [ ] Implement proper key management (HSM/KMS) for EdDSA signing key
 - [ ] Add event listener for on-chain Deposit events
 - [ ] Deploy contract to testnet/mainnet

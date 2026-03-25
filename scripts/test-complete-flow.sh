@@ -168,6 +168,19 @@ else
   echo "This could be due to proof verification or validation issues."
 fi
 
+# Save test artifacts for follow-up tests
+TEST_DATA_FILE=".test-artifacts.json"
+cat > "$TEST_DATA_FILE" <<EOF
+{
+  "contractAddress": "$CONTRACT_ADDRESS",
+  "secretKey": "$SECRET_KEY",
+  "identityCommitment": "$ID_COMMITMENT",
+  "nullifier": "$NULLIFIER",
+  "refundTicket": $(echo "$RESPONSE" | jq -c '.refundTicket // {}'),
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+
 echo ""
 echo "=== Test Complete! ==="
 echo ""
@@ -187,7 +200,9 @@ echo "  • Server issues signed refund tickets for unused credits"
 echo "  • System maintains anonymity while preventing double-spending"
 echo ""
 echo "📚 Next Steps:"
-echo "  • Test with real ZK proofs: npx ts-node scripts/generate-proof.ts 12345 1"
-echo "  • Test double-spend detection: npx ts-node scripts/test-proof-verification.ts"
-echo "  • Test refund redemption: See docs/TESTING_GUIDE.md"
+echo "  • Test double-spend: bash scripts/test-double-spend.sh"
+echo "  • Test refund redemption: bash scripts/test-refund-redemption.sh"
+echo "  • Test proof verification: npx ts-node scripts/test-proof-verification.ts"
 echo "  • Review ZK architecture: See docs/ZK.md"
+echo ""
+echo "💾 Test artifacts saved to: $TEST_DATA_FILE"

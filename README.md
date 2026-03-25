@@ -27,11 +27,28 @@ cp .env.template .env.local
 ## Test
 
 ```bash
-# Run all tests
+# Unit and E2E tests
 pnpm test
+pnpm test:e2e
 
-# Test complete flow
-bash scripts/test-complete-flow.sh
+**Prerequisites for ZK tests:**
+- Anvil running: `anvil`
+- API server running: `pnpm start:dev`
+
+# Make test scripts executable (first time only)
+chmod +x scripts/test-complete-flow.sh
+chmod +x scripts/test-double-spend.sh
+chmod +x scripts/test-invalid-proofs.sh
+chmod +x scripts/test-refund-redemption.sh
+
+# Run all ZK integration tests
+pnpm test:zk
+
+# Or run individual ZK tests
+bash scripts/test-complete-flow.sh      # Complete deposit → API → refund flow
+bash scripts/test-double-spend.sh       # Double-spend prevention
+bash scripts/test-invalid-proofs.sh     # Invalid proof rejection
+bash scripts/test-refund-redemption.sh  # On-chain refund redemption
 ```
 
 ## Run
