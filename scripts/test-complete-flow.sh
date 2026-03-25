@@ -7,9 +7,9 @@ echo "=== ZK API Complete Test Flow ==="
 echo ""
 
 # Configuration
-CONTRACT_ADDRESS="0x5FbDB2315678afecb367f032d93F642f64180aa3"
 RPC_URL="http://127.0.0.1:8545"
 PRIVATE_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+CONTRACT_ADDRESS="" # Will be extracted from deployment
 
 # Step 1: Check if Anvil is running
 echo "Step 1: Checking Anvil..."
@@ -26,10 +26,20 @@ echo ""
 # Step 2: Deploy contract
 echo "Step 2: Deploying ZkApiCredits contract..."
 cd contracts
-forge script script/DeployZkApiCredits.s.sol:DeployZkApiCredits \
+DEPLOY_OUTPUT=$(forge script script/DeployZkApiCredits.s.sol:DeployZkApiCredits \
   --rpc-url $RPC_URL \
   --broadcast \
-  --private-key $PRIVATE_KEY
+  --private-key $PRIVATE_KEY 2>&1)
+
+# Extract contract address from deployment logs
+CONTRACT_ADDRESS=$(echo "$DEPLOY_OUTPUT" | grep "ZkApiCredits deployed at:" | awk '{print $NF}')
+
+if [ -z "$CONTRACT_ADDRESS" ]; then
+  echo "❌ Failed to extract contract address from deployment"
+  echo "$DEPLOY_OUTPUT"
+  exit 1
+fi
+
 cd ..
 echo "✓ Contract deployed at: $CONTRACT_ADDRESS"
 echo ""
@@ -39,8 +49,17 @@ echo "Step 3: Making test deposit..."
 SECRET_KEY="0x$(openssl rand -hex 32)"
 echo "Secret Key (KEEP SECRET): $SECRET_KEY"
 
-ID_COMMITMENT=$(cast keccak "$SECRET_KEY")
-echo "Identity Commitment: $ID_COMMITMENT"
+# Compute identity commitment using Poseidon hash (matches ZK circuit)
+echo "Computing Poseidon hash for identity commitment..."
+ID_COMMITMENT=$(npx ts-node scripts/compute-poseidon.ts "$SECRET_KEY" 2>/dev/null)
+
+if [ -z "$ID_COMMITMENT" ]; then
+  echo "❌ Failed to compute Poseidon hash"
+  echo "   Make sure circomlibjs is installed: pnpm install"
+  exit 1
+fi
+
+echo "Identity Commitment (Poseidon): $ID_COMMITMENT"
 
 TX_HASH=$(cast send $CONTRACT_ADDRESS \
   "deposit(bytes32)" \

@@ -48,6 +48,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^10.0.1",
+    "@iden3/contracts": "^3.4.0",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
@@ -62,6 +63,7 @@
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^17.4.0",
     "jest": "^30.0.0",
+    "poseidon-solidity": "^0.0.5",
     "prettier": "^3.4.2",
     "snarkjs": "^0.7.6",
     "source-map-support": "^0.5.21",
