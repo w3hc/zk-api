@@ -295,9 +295,25 @@ npx ts-node scripts/test-proof-verification.ts
 - ✅ Two signals with same nullifier reveal the secret key via linear algebra
 - ✅ This enables stake slashing for double-spending without centralized authority
 
-## Automated Test Script
+## Automated Test Scripts
 
-For convenience, use the automated test script that runs the complete flow:
+### Complete Test Suite
+
+Run all integration tests at once:
+
+```bash
+pnpm test:zk
+```
+
+This runs all four test scripts in sequence:
+1. Complete flow test
+2. Double-spend prevention test
+3. Invalid proof rejection test
+4. Refund redemption test
+
+### Individual Test Scripts
+
+#### 1. Complete Flow Test
 
 ```bash
 bash scripts/test-complete-flow.sh
@@ -311,6 +327,7 @@ bash scripts/test-complete-flow.sh
 5. ✅ Checks if API server is running
 6. ✅ **Generates a real ZK proof** using Poseidon hash and RLN signals
 7. ✅ Makes an API request with cryptographic proof and displays the response
+8. ✅ Saves test artifacts to `.test-artifacts.json` for follow-up tests
 
 **Expected Output:**
 ```
@@ -362,6 +379,113 @@ The API response includes:
 
 **Note:** Each run generates a fresh random secret key and nullifier, so the test can be run multiple times without conflicts. The proof uses real cryptographic primitives (Poseidon hash for commitments, RLN signals for slashing detection).
 
+#### 2. Double-Spend Prevention Test
+
+```bash
+bash scripts/test-double-spend.sh
+```
+
+**What It Does:**
+1. ✅ Generates a fresh ZK proof with random nullifier
+2. ✅ Makes first API request → should succeed
+3. ✅ Generates second proof with same secret key but different ticket index
+4. ✅ Makes second request with same nullifier → should be rejected
+5. ✅ Verifies double-spend detection is working
+
+**Expected Output:**
+```
+✅ Second request REJECTED (expected - double-spend prevented!)
+   Error: Double-spend detected. Your secret key has been extracted and you will be slashed.
+
+✅ PASS: Double-spend prevention is working correctly!
+   ✓ First request with nullifier succeeded
+   ✓ Second request with same nullifier was rejected
+   ✓ Nullifier is tracked in API database
+```
+
+#### 3. Invalid Proof Rejection Test
+
+```bash
+bash scripts/test-invalid-proofs.sh
+```
+
+**What It Does:**
+Tests 28 different types of invalid proofs across 7 categories:
+1. ✅ Malformed proof structures (4 tests)
+2. ✅ Invalid Groth16 formats (4 tests)
+3. ✅ Invalid nullifier formats (5 tests)
+4. ✅ Invalid signal values (5 tests)
+5. ✅ Invalid cost values (4 tests)
+6. ✅ Invalid payloads (3 tests)
+7. ✅ Malformed requests (3 tests)
+
+**Expected Output:**
+```
+=== Test Results Summary ===
+
+Total tests: 28
+Passed: 28
+Failed: 0
+
+✅ ALL TESTS PASSED!
+
+The API correctly rejects all types of invalid proofs:
+  ✓ Malformed proof structures
+  ✓ Invalid Groth16 formats
+  ✓ Invalid nullifier formats
+  ✓ Invalid signal values
+  ✓ Invalid cost values
+  ✓ Invalid payloads
+  ✓ Malformed requests
+```
+
+#### 4. Refund Redemption Test
+
+```bash
+bash scripts/test-refund-redemption.sh
+```
+
+**What It Does:**
+1. ✅ Loads refund ticket from previous test
+2. ✅ Checks balance before redemption
+3. ✅ Calls `redeemRefund()` on smart contract
+4. ✅ Verifies balance increased by refund amount
+5. ✅ Tests double-redemption prevention
+
+**Expected Output:**
+```
+✅ Refund redemption transaction succeeded!
+✓ Transaction status: SUCCESS
+
+✓ Balance increased (refund received, minus gas costs)
+   Expected refund: 996380401808182 wei
+   Gas cost: ~8548522826823 wei
+
+✅ PASS: Refund redemption is working correctly!
+```
+
+### Prerequisites for Test Scripts
+
+Before running the integration tests, ensure:
+
+1. **Anvil is running:**
+   ```bash
+   anvil
+   ```
+
+2. **API server is running:**
+   ```bash
+   pnpm start:dev
+   ```
+
+3. **Scripts are executable (first time only):**
+   ```bash
+   chmod +x scripts/test-complete-flow.sh
+   chmod +x scripts/test-double-spend.sh
+   chmod +x scripts/test-invalid-proofs.sh
+   chmod +x scripts/test-refund-redemption.sh
+   ```
+
 ## Testing Refund Redemption
 
 To test the complete refund flow:
@@ -397,10 +521,18 @@ curl -k -X POST https://localhost:3000/zk-api/redeem-refund \
 
 ## Key Test Files
 
+### Integration Test Scripts
+- [`scripts/test-complete-flow.sh`](../scripts/test-complete-flow.sh) - Complete deposit → API → refund flow
+- [`scripts/test-double-spend.sh`](../scripts/test-double-spend.sh) - Double-spend prevention test
+- [`scripts/test-invalid-proofs.sh`](../scripts/test-invalid-proofs.sh) - Invalid proof rejection (28 tests)
+- [`scripts/test-refund-redemption.sh`](../scripts/test-refund-redemption.sh) - On-chain refund redemption
+
+### Helper Scripts
 - [`scripts/generate-proof.ts`](../scripts/generate-proof.ts) - Generate ZK proofs for API requests
 - [`scripts/test-proof-verification.ts`](../scripts/test-proof-verification.ts) - Test proof generation and double-spend detection
-- [`scripts/test-complete-flow.sh`](../scripts/test-complete-flow.sh) - Automated end-to-end test
-- [`scripts/test-deposit.sh`](../scripts/test-deposit.sh) - Deposit-only test script
+- [`scripts/compute-poseidon.ts`](../scripts/compute-poseidon.ts) - Compute Poseidon hash for identity commitments
+
+### Contract Scripts
 - [`contracts/script/DeployZkApiCredits.s.sol`](../contracts/script/DeployZkApiCredits.s.sol) - Contract deployment script
 
 ## Troubleshooting
