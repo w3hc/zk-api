@@ -55,6 +55,9 @@ export class BlockchainService implements OnModuleInit {
 
       // Sync Merkle tree with on-chain state
       await this.syncMerkleTree();
+
+      // Start listening for new deposits
+      this.startEventMonitoring();
     } catch (error) {
       this.logger.error('Failed to connect to blockchain', error);
     }
@@ -269,6 +272,112 @@ export class BlockchainService implements OnModuleInit {
       `Added identity commitment to Merkle tree at index ${index}`,
     );
     return index;
+  }
+
+  /**
+   * Start monitoring on-chain deposit events
+   * Automatically updates off-chain Merkle tree when new deposits are made
+   */
+  private startEventMonitoring(): void {
+    if (!this.contract) {
+      this.logger.warn(
+        'Cannot start event monitoring - contract not initialized',
+      );
+      return;
+    }
+
+    try {
+      // Listen for new DepositMade events
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      this.contract.on(
+        'DepositMade',
+        (
+          idCommitment: string,
+          rlnStake: bigint,
+          policyStake: bigint,
+          timestamp: bigint,
+          event: ethers.EventLog,
+        ) => {
+          this.logger.log(
+            `Deposit event detected: idCommitment=${idCommitment}, block=${event.blockNumber}`,
+          );
+
+          // Handle event asynchronously
+          void this.handleDepositEvent(idCommitment);
+        },
+      );
+
+      // Handle chain reorganizations
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      this.provider?.on('block', (blockNumber: number) => {
+        // Check periodically if we need to resync (every 100 blocks)
+        if (blockNumber % 100 === 0) {
+          void this.handleBlockEvent(blockNumber);
+        }
+      });
+
+      this.logger.log('Event monitoring started for DepositMade events');
+    } catch (error) {
+      this.logger.error('Failed to start event monitoring', error);
+    }
+  }
+
+  /**
+   * Handle deposit event asynchronously
+   */
+  private async handleDepositEvent(idCommitment: string): Promise<void> {
+    try {
+      // Add to off-chain Merkle tree
+      const commitmentBigInt = BigInt(idCommitment);
+      const index = await this.addIdentityCommitment(commitmentBigInt);
+
+      // Verify sync with on-chain root
+      const offChainRoot = await this.merkleTree.getRoot();
+      const onChainRoot = await this.getMerkleRoot();
+      const offChainRootHex =
+        '0x' + offChainRoot.toString(16).padStart(64, '0');
+
+      if (offChainRootHex.toLowerCase() === onChainRoot.toLowerCase()) {
+        this.logger.log(
+          `Merkle tree synced after deposit: index=${index}, root=${onChainRoot}`,
+        );
+      } else {
+        this.logger.error(
+          `Merkle root mismatch after deposit! Off-chain: ${offChainRootHex}, On-chain: ${onChainRoot}`,
+        );
+        // Attempt full resync
+        await this.syncMerkleTree();
+      }
+    } catch (error) {
+      this.logger.error('Failed to process deposit event', error);
+      // Attempt full resync on error
+      try {
+        await this.syncMerkleTree();
+      } catch (syncError) {
+        this.logger.error('Failed to resync Merkle tree', syncError);
+      }
+    }
+  }
+
+  /**
+   * Handle block event for periodic root verification
+   */
+  private async handleBlockEvent(blockNumber: number): Promise<void> {
+    try {
+      const offChainRoot = await this.merkleTree.getRoot();
+      const onChainRoot = await this.getMerkleRoot();
+      const offChainRootHex =
+        '0x' + offChainRoot.toString(16).padStart(64, '0');
+
+      if (offChainRootHex.toLowerCase() !== onChainRoot.toLowerCase()) {
+        this.logger.warn(
+          `Merkle root drift detected at block ${blockNumber}. Resyncing...`,
+        );
+        await this.syncMerkleTree();
+      }
+    } catch (error) {
+      this.logger.error('Failed to handle block event', error);
+    }
   }
 
   /**
