@@ -36,6 +36,9 @@ export class ZkApiResponseDto {
   @ApiProperty({ description: 'Signed refund ticket', type: RefundTicketDto })
   refundTicket: RefundTicketDto;
 
-  @ApiProperty({ description: 'Usage metrics (example: token counts)', type: UsageDto })
+  @ApiProperty({
+    description: 'Usage metrics (example: token counts)',
+    type: UsageDto,
+  })
   usage: UsageDto;
 }

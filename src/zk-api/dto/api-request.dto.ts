@@ -50,7 +50,10 @@ export class ZkApiRequestDto {
   @IsNotEmpty()
   maxCost: string;
 
-  @ApiProperty({ description: 'Model/service variant to use (example: claude-sonnet-4.6)', required: false })
+  @ApiProperty({
+    description: 'Model/service variant to use (example: claude-sonnet-4.6)',
+    required: false,
+  })
   @IsString()
   @IsOptional()
   model?: string;
