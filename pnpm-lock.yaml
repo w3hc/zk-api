@@ -33,7 +33,7 @@ importers:
         specifier: ^0.5.7
         version: 0.5.7(@noble/hashes@1.8.0)(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
       better-sqlite3:
-        specifier: ^12.8.0
+        specifier: 12.8.0
         version: 12.8.0
       circomlibjs:
         specifier: ^0.1.7
