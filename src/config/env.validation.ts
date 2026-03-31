@@ -21,7 +21,7 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  ANTHROPIC_API_KEY?: string;
+  ANTHROPIC_API_KEY?: string; // Example: Claude API key (replace with your external service credentials)
 
   @IsOptional()
   @IsEthereumAddress()

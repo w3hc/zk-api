@@ -27,8 +27,9 @@ export class ZkApiController {
   @ApiOperation({
     summary: 'Submit anonymous API request with ZK proof',
     description:
-      'Submit a Claude API request with zero-knowledge proof of solvency. ' +
-      'Requires valid ZK proof and unique nullifier. Returns Claude response and signed refund ticket.',
+      'Submit an external API request with zero-knowledge proof of solvency. ' +
+      'Requires valid ZK proof and unique nullifier. Returns API response and signed refund ticket. ' +
+      '(Example implementation: Claude API)',
   })
   @ApiResponse({
     status: 200,

@@ -27,7 +27,7 @@ export class RefundTicketDto {
 }
 
 export class ZkApiResponseDto {
-  @ApiProperty({ description: 'Claude API response content' })
+  @ApiProperty({ description: 'External API response content' })
   response: string;
 
   @ApiProperty({ description: 'Actual cost in wei' })
@@ -36,6 +36,6 @@ export class ZkApiResponseDto {
   @ApiProperty({ description: 'Signed refund ticket', type: RefundTicketDto })
   refundTicket: RefundTicketDto;
 
-  @ApiProperty({ description: 'Token usage', type: UsageDto })
+  @ApiProperty({ description: 'Usage metrics (example: token counts)', type: UsageDto })
   usage: UsageDto;
 }

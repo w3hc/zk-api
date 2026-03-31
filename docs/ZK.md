@@ -4,7 +4,9 @@ This document provides a comprehensive overview of the Zero-Knowledge (ZK) proof
 
 ## Overview
 
-The ZK API system enables privacy-preserving access to Claude API services using Zero-Knowledge proofs, Rate-Limit Nullifiers (RLN), and Ethereum smart contracts. Users deposit ETH once and make thousands of anonymous API calls without revealing their identity or linking requests together.
+The ZK API system enables privacy-preserving access to any external API service using Zero-Knowledge proofs, Rate-Limit Nullifiers (RLN), and Ethereum smart contracts. Users deposit ETH once and make thousands of anonymous API calls without revealing their identity or linking requests together.
+
+**Reference Implementation**: Claude API integration is provided as a complete example.
 
 ## Core Concepts
 

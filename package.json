@@ -1,9 +1,9 @@
 {
   "name": "zk-api",
   "version": "0.1.0",
-  "description": "Privacy-preserving API",
+  "description": "ZK API Usage Credits",
   "author": "Julien Béranger",
-  "license": "GPL-3.0",
+  "license": "LGPL-3.0",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
