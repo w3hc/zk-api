@@ -10,6 +10,8 @@ import { EthRateOracleService } from './eth-rate-oracle.service';
 import { RefundSignerService } from './refund-signer.service';
 import { BlockchainService } from './blockchain.service';
 import { ZkApiRequestDto } from './dto/api-request.dto';
+import { SecretsService } from '../config/secrets.service';
+import { TeePlatformService } from '../attestation/tee-platform.service';
 
 describe('ZkApiService', () => {
   let service: ZkApiService;
@@ -53,6 +55,8 @@ describe('ZkApiService', () => {
         SnarkjsProofService,
         EthRateOracleService,
         RefundSignerService,
+        SecretsService,
+        TeePlatformService,
         {
           provide: BlockchainService,
           useValue: {

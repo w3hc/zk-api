@@ -35,10 +35,77 @@ Before deploying to any TEE platform, ensure you have:
    cp .env.template .env
    # Edit .env with production values
    NODE_ENV=production
-   KMS_URL=https://your-kms.example.com/release
+
+   # Option 1: Use KMS (recommended for cloud TEE)
+   KMS_URL=https://your-kms.example.com/secrets
+
+   # Option 2: Use environment variables (Phala TEE or basic VPS)
+   OPERATOR_PRIVATE_KEY=0x1234567890abcdef...
+
+   # Option 3: Let SecretsService auto-load from TEE platform
+   # (Phala Cloud injects encrypted secrets automatically)
    ```
 
 4. **TLS certificates ready**: In production, certificates should be generated inside the enclave to ensure the host never sees the private key.
+
+## Secret Management
+
+The application supports multiple secret management strategies depending on your deployment:
+
+### Strategy 1: KMS with TEE Attestation (Most Secure)
+
+**Use when**: Deploying to cloud TEE (AWS Nitro, Azure Confidential VMs, etc.)
+
+```bash
+NODE_ENV=production
+KMS_URL=https://kms.example.com/secrets
+```
+
+The application will:
+1. Generate TEE attestation report proving its identity
+2. Send attestation to KMS endpoint
+3. KMS verifies attestation and releases secrets
+4. `OPERATOR_PRIVATE_KEY` loaded into memory only
+
+**KMS Implementation**: You need to provide a KMS service that:
+- Accepts POST requests with attestation reports
+- Verifies the attestation against expected measurements
+- Returns secrets only to verified enclaves
+- Example response: `{"OPERATOR_PRIVATE_KEY": "0x...", "ANTHROPIC_API_KEY": "sk-..."}`
+
+### Strategy 2: TEE Platform Secrets (Phala)
+
+**Use when**: Deploying to Phala Cloud or similar TEE platforms
+
+```bash
+NODE_ENV=production
+OPERATOR_PRIVATE_KEY=0x...  # Encrypted and injected by Phala
+ANTHROPIC_API_KEY=sk-...     # Encrypted and injected by Phala
+```
+
+The platform encrypts secrets and injects them as environment variables. `SecretsService` automatically loads them.
+
+### Strategy 3: Environment Variables (Basic VPS)
+
+**Use when**: Deploying to basic Ubuntu VPS without TEE
+
+```bash
+NODE_ENV=production
+OPERATOR_PRIVATE_KEY=0x...  # From .env or systemd service
+```
+
+⚠️ **Warning**: Without TEE, the host can access memory and secrets. Use only for testing or low-stakes deployments.
+
+### Strategy 4: Development Mode (Local)
+
+**Use when**: Local development and testing
+
+```bash
+# No NODE_ENV or NODE_ENV=development
+OPERATOR_PRIVATE_KEY=0x...  # Optional, auto-generates if not set
+```
+
+If not provided, a deterministic dev key is generated automatically.
 
 ## Platform-Specific Setup
 
