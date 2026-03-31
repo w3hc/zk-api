@@ -1,24 +1,20 @@
-# ZK API
+# ZK API Usage Credits
 
-**Privacy-preserving Claude API access using Zero-Knowledge proofs and Rate-Limit Nullifiers**
+Anonymous API access with ZK proofs. Deposit ETH once, make unlimited anonymous requests to any API service with no identity tracking or request linking.
 
-ZK API enables anonymous access to Claude's AI models through a prepaid credit system backed by Ethereum smart contracts. Users deposit ETH once and make thousands of anonymous API requests without revealing their identity or linking requests together, using ZK-SNARK proofs and Rate-Limit Nullifiers (RLN).
+TS implementation of the [ZK API Usage Credits: LLMs and Beyond](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) proposal by Davide Crapis & Vitalik Buterin.
 
-Implementation based on the [ZK API Usage Credits: LLMs and Beyond](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) proposal on Ethresear.ch.
-
-## How it works
+## Workflow
 
 1. **Deposit** ETH to smart contract with anonymous identity commitment
 2. **Generate** ZK proof of solvency for each API request
-3. **Request** Claude API anonymously with proof and nullifier
+3. **Request** any API service anonymously with proof and nullifier (Claude API example included)
 4. **Receive** refund ticket for unused credits
 5. **Redeem** accumulated refunds on-chain
 
 ## Install
 
 ```bash
-git clone https://github.com/w3hc/zk-api.git
-cd zk-api
 pnpm install
 forge install
 cp .env.template .env.local
@@ -26,25 +22,50 @@ cp .env.template .env.local
 
 ## Test
 
+### Unit tests
+
 ```bash
-# Unit and E2E tests
 pnpm test
+```
+
+### End-to-end tests
+
+```bash
 pnpm test:e2e
+```
 
-**Prerequisites for ZK tests:**
-- Anvil running: `anvil`
-- API server running: `pnpm start:dev`
+### Integration tests
 
-# Make test scripts executable (first time only)
+Make sure Anvil is running (in a separated tab): 
+
+```bash
+anvil
+```
+
+Same for the API (in a separated tab too):
+
+```bash
+pnpm start:dev
+```
+
+Make test scripts executable (first time only): 
+
+```bash
 chmod +x scripts/test-complete-flow.sh
 chmod +x scripts/test-double-spend.sh
 chmod +x scripts/test-invalid-proofs.sh
 chmod +x scripts/test-refund-redemption.sh
+```
 
-# Run all ZK integration tests
+Then run: 
+
+```bash
 pnpm test:zk
+```
 
-# Or run individual ZK tests
+Or run individual ZK tests: 
+
+```bash
 bash scripts/test-complete-flow.sh      # Complete deposit → API → refund flow
 bash scripts/test-double-spend.sh       # Double-spend prevention
 bash scripts/test-invalid-proofs.sh     # Invalid proof rejection
@@ -94,7 +115,7 @@ Based on the **Wulong API template** by W3HC: https://github.com/w3hc/wulong
 
 ## License
 
-GPL-3.0
+LGPL-3.0
 
 ## Contact
 

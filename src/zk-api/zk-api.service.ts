@@ -13,7 +13,8 @@ import { ProofVerifierService } from './proof-verifier.service';
 import { EthRateOracleService } from './eth-rate-oracle.service';
 import { RefundSignerService } from './refund-signer.service';
 
-// Claude API Pricing (USD per million tokens)
+// Example: Claude API Pricing (USD per million tokens)
+// This can be configured for any API service with similar pricing models
 const CLAUDE_PRICING = {
   'claude-opus-4.6': { input: 5, output: 25 },
   'claude-sonnet-4.6': { input: 3, output: 15 },
@@ -24,7 +25,8 @@ type ClaudeModel = keyof typeof CLAUDE_PRICING;
 
 /**
  * Main service for handling ZK-based API requests
- * Implements the protocol from ZK_API.md
+ * Generic implementation that can be adapted to any API service
+ * Claude API is provided as a reference implementation
  */
 @Injectable()
 export class ZkApiService {
@@ -38,10 +40,12 @@ export class ZkApiService {
     private readonly ethRateOracle: EthRateOracleService,
     private readonly refundSigner: RefundSignerService,
   ) {
+    // Example: Initialize Claude API client
+    // Replace with your own API service client initialization
     const apiKey = this.configService.get<string>('ANTHROPIC_API_KEY');
     if (!apiKey) {
       this.logger.warn(
-        'ANTHROPIC_API_KEY not found. Claude API calls will use mock responses.',
+        'ANTHROPIC_API_KEY not found. API calls will use mock responses.',
       );
     }
     this.anthropic = new Anthropic({ apiKey: apiKey || 'mock-key' });
@@ -87,7 +91,7 @@ export class ZkApiService {
     // 3. Store nullifier to prevent reuse
     this.nullifierStore.set(req.nullifier, req.signal);
 
-    // 4. Execute Claude API request
+    // 4. Execute API request (Claude example)
     const response = await this.executeClaudeRequest(req.payload, model);
 
     // 5. Calculate actual cost in ETH
@@ -144,7 +148,8 @@ export class ZkApiService {
   }
 
   /**
-   * Calculate cost in ETH (wei) for Claude API usage
+   * Calculate cost in ETH (wei) for external API usage
+   * Example implementation for Claude API - adapt for your external service
    */
   private async calculateCostInETH(
     inputTokens: number,
@@ -175,8 +180,9 @@ export class ZkApiService {
   }
 
   /**
-   * Execute Claude API request
+   * Execute external API request (Claude example)
    * Falls back to mock if ANTHROPIC_API_KEY is not configured
+   * Replace this method with your own external API integration
    */
   private async executeClaudeRequest(
     payload: string,
@@ -220,7 +226,8 @@ export class ZkApiService {
   }
 
   /**
-   * Mock Claude response for development/testing
+   * Mock API response for development/testing
+   * Example implementation for Claude - adapt for your external service
    */
   private mockClaudeRequest(
     payload: string,

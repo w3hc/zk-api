@@ -21,7 +21,7 @@ export class RlnSignalDto {
 }
 
 export class ZkApiRequestDto {
-  @ApiProperty({ description: 'User prompt for Claude API' })
+  @ApiProperty({ description: 'Request payload for external API service' })
   @IsString()
   @IsNotEmpty()
   payload: string;
@@ -50,7 +50,10 @@ export class ZkApiRequestDto {
   @IsNotEmpty()
   maxCost: string;
 
-  @ApiProperty({ description: 'Claude model to use', required: false })
+  @ApiProperty({
+    description: 'Model/service variant to use (example: claude-sonnet-4.6)',
+    required: false,
+  })
   @IsString()
   @IsOptional()
   model?: string;

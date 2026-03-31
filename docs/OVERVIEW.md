@@ -2,7 +2,9 @@
 
 ## Introduction
 
-ZK API is a privacy-preserving system for accessing Claude AI models anonymously using Zero-Knowledge proofs and Rate-Limit Nullifiers (RLN). The system enables users to deposit ETH once and make thousands of untraceable API requests without revealing their identity or linking requests together.
+ZK API is a privacy-preserving system for accessing any external API service anonymously using Zero-Knowledge proofs and Rate-Limit Nullifiers (RLN). The system enables users to deposit ETH once and make thousands of untraceable API requests without revealing their identity or linking requests together.
+
+**Reference Implementation**: Claude AI integration is provided as a complete example of how to integrate any external API service.
 
 **Key Innovation**: Combines ZK-SNARKs (Groth16) for proving solvency with Rate-Limit Nullifiers for preventing double-spending, all while maintaining complete privacy.
 

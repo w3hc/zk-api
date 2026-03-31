@@ -1,6 +1,8 @@
 # ZK API Reference
 
-Complete API reference for the ZK API privacy-preserving Claude access system.
+Complete API reference for the ZK API privacy-preserving system for accessing external API services.
+
+**Reference Implementation**: This documentation uses Claude API as an example. The same patterns apply to any external API service integration.
 
 ## Base URL
 
@@ -49,7 +51,7 @@ https://your-domain.com  (production)
 
 ### POST /zk-api/request
 
-Submit anonymous Claude API request with Zero-Knowledge proof of solvency.
+Submit anonymous external API request with Zero-Knowledge proof of solvency (example: Claude API).
 
 **Authentication:** None (anonymity is provided by ZK proof)
 
@@ -57,7 +59,7 @@ Submit anonymous Claude API request with Zero-Knowledge proof of solvency.
 
 ```typescript
 {
-  payload: string;              // The message/prompt for Claude
+  payload: string;              // The message/prompt for external API
   proof: string;                // Groth16 ZK proof (JSON string)
   nullifier: string;            // Unique nullifier for this request
   signal: {
@@ -65,7 +67,7 @@ Submit anonymous Claude API request with Zero-Knowledge proof of solvency.
     y: string;                  // RLN signal y component
   };
   maxCost: string;              // Maximum cost willing to pay (in wei)
-  model?: string;               // claude-opus-4.6, claude-sonnet-4.6, claude-haiku-4.5 (default: sonnet)
+  model?: string;               // Example: claude-opus-4.6, claude-sonnet-4.6, claude-haiku-4.5 (default: sonnet)
 }
 ```
 
@@ -73,7 +75,7 @@ Submit anonymous Claude API request with Zero-Knowledge proof of solvency.
 
 ```typescript
 {
-  response: string;             // Claude's response
+  response: string;             // External API's response
   actualCost: string;           // Actual cost in wei
   refundTicket: {
     nullifier: string;          // Nullifier of this request
