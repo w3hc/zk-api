@@ -9,6 +9,8 @@ import { BlockchainService } from './blockchain.service';
 import { ProofGenService } from './proof-gen.service';
 import { MerkleTreeService } from './merkle-tree.service';
 import { SnarkjsProofService } from './snarkjs-proof.service';
+import { SecretsService } from '../config/secrets.service';
+import { TeePlatformService } from '../attestation/tee-platform.service';
 
 @Module({
   controllers: [ZkApiController],
@@ -22,6 +24,8 @@ import { SnarkjsProofService } from './snarkjs-proof.service';
     RefundSignerService,
     BlockchainService,
     MerkleTreeService,
+    SecretsService,
+    TeePlatformService,
   ],
   exports: [
     ZkApiService,

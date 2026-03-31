@@ -258,6 +258,37 @@ We chose **not** to encrypt the database because:
 
 If user payloads were stored, encryption would be mandatory. Since we removed payloads entirely, encryption provides no additional privacy benefit.
 
+### Private Key Management
+
+The EdDSA private key used for signing refund tickets is **never stored on disk**. Instead, it's managed through `SecretsService`:
+
+**🏠 Local Development**:
+```bash
+export OPERATOR_PRIVATE_KEY=0x1234...
+# Or let it auto-generate a deterministic dev key
+```
+
+**☁️ Basic Ubuntu VPS** (no TEE):
+```bash
+NODE_ENV=production
+OPERATOR_PRIVATE_KEY=0x5678...  # In .env or systemd service
+```
+
+**🔐 Phala TEE** (production):
+```bash
+NODE_ENV=production
+OPERATOR_PRIVATE_KEY=0xabcd...  # Encrypted by Phala Cloud
+```
+
+**🔒 Cloud with KMS** (AWS/GCP/Azure):
+```bash
+NODE_ENV=production
+KMS_URL=https://kms.example.com/secrets
+# Key fetched from KMS using TEE attestation
+```
+
+The private key exists **only in memory** and is loaded via `SecretsService` which handles all deployment scenarios. See `src/config/secrets.service.ts` for implementation details.
+
 ## Double-Spend Detection
 
 ### How It Works

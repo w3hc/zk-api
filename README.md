@@ -74,6 +74,8 @@ bash scripts/test-refund-redemption.sh  # On-chain refund redemption
 
 ## Run
 
+### Local Development
+
 ```bash
 # Generate TLS certificates
 mkdir -p secrets
@@ -83,7 +85,7 @@ openssl req -x509 -newkey rsa:4096 \
   -days 365 -nodes \
   -subj "/CN=localhost"
 
-# Generate EdDSA keypair
+# Generate EdDSA keypair (optional - auto-generates if not set)
 pnpm ts-node scripts/generate-admin-keypair.ts
 
 # Start server
@@ -91,6 +93,34 @@ pnpm start:dev
 ```
 
 API available at `https://localhost:3000`
+
+### Production Deployment
+
+The application supports multiple deployment strategies:
+
+**🏠 Basic Ubuntu VPS** (no TEE):
+```bash
+NODE_ENV=production
+OPERATOR_PRIVATE_KEY=0x...  # EdDSA key for refund signatures
+pnpm start:prod
+```
+
+**🔐 Phala TEE**:
+```bash
+NODE_ENV=production
+# Phala injects encrypted secrets automatically
+```
+See [PHALA_CONFIG.md](docs/PHALA_CONFIG.md)
+
+**☁️ Cloud with KMS** (AWS/GCP/Azure):
+```bash
+NODE_ENV=production
+KMS_URL=https://kms.example.com/secrets
+# Fetches OPERATOR_PRIVATE_KEY from KMS using TEE attestation
+```
+See [TEE_SETUP.md](docs/TEE_SETUP.md)
+
+**Secret Management**: The `OPERATOR_PRIVATE_KEY` is never stored on disk. It's loaded into memory via `SecretsService` which supports environment variables, Phala encrypted secrets, or KMS with TEE attestation. See [SQLITE3.md](docs/SQLITE3.md#private-key-management) for details.
 
 ## Docs
 

@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { buildBabyjub, buildEddsa, buildPoseidon } from 'circomlibjs';
 import { RefundTicketDto } from './dto/api-response.dto';
+import { SecretsService } from '../config/secrets.service';
 
 /**
  * Service for signing refund tickets using EdDSA with Babyjubjub curve
@@ -24,7 +25,10 @@ export class RefundSignerService {
   private initialized = false;
   private initPromise: Promise<void>;
 
-  constructor() {
+  constructor(
+    @Inject(SecretsService)
+    private readonly secretsService: SecretsService,
+  ) {
     this.initPromise = this.initialize();
   }
 
@@ -38,10 +42,21 @@ export class RefundSignerService {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       this.poseidon = await buildPoseidon();
 
-      // In production, load from secure key management system (HSM/KMS)
-      // For development, use OPERATOR_PRIVATE_KEY from environment
-      const privateKeyHex =
-        process.env.OPERATOR_PRIVATE_KEY || this.generatePrivateKey();
+      // Load private key from SecretsService which handles:
+      // - Local dev: Falls back to process.env (or generates dev key)
+      // - Phala TEE: Loads from encrypted environment variables
+      // - Cloud with KMS: Fetches from KMS using TEE attestation
+      let privateKeyHex: string;
+      try {
+        privateKeyHex = this.secretsService.get('OPERATOR_PRIVATE_KEY');
+      } catch {
+        // Fallback for local dev if not in secrets
+        privateKeyHex =
+          process.env.OPERATOR_PRIVATE_KEY || this.generatePrivateKey();
+        this.logger.warn(
+          'OPERATOR_PRIVATE_KEY not found in SecretsService, using fallback',
+        );
+      }
 
       // Convert hex string to Buffer (remove 0x prefix if present)
       // Private key must be exactly 32 bytes for Babyjubjub
