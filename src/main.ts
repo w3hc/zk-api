@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LGPL-3.0
+// Copyright (C) 2026 Julien Béranger and the W3HC
+
 import * as fs from 'fs';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';

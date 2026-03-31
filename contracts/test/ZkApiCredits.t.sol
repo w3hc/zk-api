@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0
 pragma solidity ^0.8.13;
 
-import "forge-std/Test.sol";
-import "../src/ZkApiCredits.sol";
-import "../src/PoseidonHasher.sol";
+import 'forge-std/Test.sol';
+import '../src/ZkApiCredits.sol';
+import '../src/PoseidonHasher.sol';
 
 contract ZkApiCreditsTest is Test {
     ZkApiCredits public zkApi;
@@ -16,7 +16,8 @@ contract ZkApiCreditsTest is Test {
 
     uint256 public constant MIN_RLN_STAKE = 0.005 ether;
     uint256 public constant MIN_POLICY_STAKE = 0.005 ether;
-    uint256 public constant MIN_TOTAL_DEPOSIT = MIN_RLN_STAKE + MIN_POLICY_STAKE;
+    uint256 public constant MIN_TOTAL_DEPOSIT =
+        MIN_RLN_STAKE + MIN_POLICY_STAKE;
 
     // Test identity commitments (Hash of secret keys)
     bytes32 public idCommitment1;
@@ -52,19 +53,25 @@ contract ZkApiCreditsTest is Test {
 
     function setUp() public {
         owner = address(this);
-        server = makeAddr("server");
-        user1 = makeAddr("user1");
-        user2 = makeAddr("user2");
-        slasher = makeAddr("slasher");
+        server = makeAddr('server');
+        user1 = makeAddr('user1');
+        user2 = makeAddr('user2');
+        slasher = makeAddr('slasher');
 
         // Deploy contract with dummy server public key
         bytes32 serverPubKeyX = bytes32(uint256(1));
         bytes32 serverPubKeyY = bytes32(uint256(2));
-        zkApi = new ZkApiCredits(server, MIN_RLN_STAKE, MIN_POLICY_STAKE, serverPubKeyX, serverPubKeyY);
+        zkApi = new ZkApiCredits(
+            server,
+            MIN_RLN_STAKE,
+            MIN_POLICY_STAKE,
+            serverPubKeyX,
+            serverPubKeyY
+        );
 
         // Generate test identity commitments using Poseidon (matching circuit)
-        secretKey1 = keccak256(abi.encodePacked("secret1"));
-        secretKey2 = keccak256(abi.encodePacked("secret2"));
+        secretKey1 = keccak256(abi.encodePacked('secret1'));
+        secretKey2 = keccak256(abi.encodePacked('secret2'));
         // Use Poseidon hash: idCommitment = Poseidon(secretKey)
         idCommitment1 = bytes32(PoseidonHasher.hash(uint256(secretKey1)));
         idCommitment2 = bytes32(PoseidonHasher.hash(uint256(secretKey2)));
@@ -83,7 +90,12 @@ contract ZkApiCreditsTest is Test {
         vm.startPrank(user1);
 
         vm.expectEmit(true, false, false, true);
-        emit DepositMade(idCommitment1, depositAmount / 2, depositAmount / 2, block.timestamp);
+        emit DepositMade(
+            idCommitment1,
+            depositAmount / 2,
+            depositAmount / 2,
+            block.timestamp
+        );
 
         zkApi.deposit{value: depositAmount}(idCommitment1);
         vm.stopPrank();
@@ -147,7 +159,7 @@ contract ZkApiCreditsTest is Test {
         zkApi.deposit{value: depositAmount}(idCommitment1);
 
         // User withdraws
-        address payable recipient = payable(makeAddr("recipient"));
+        address payable recipient = payable(makeAddr('recipient'));
         uint256 balanceBefore = recipient.balance;
 
         vm.prank(user1);
@@ -171,8 +183,8 @@ contract ZkApiCreditsTest is Test {
         zkApi.deposit{value: 0.01 ether}(idCommitment1);
 
         // Try to withdraw with wrong secret key
-        address payable recipient = payable(makeAddr("recipient"));
-        bytes32 wrongSecret = keccak256(abi.encodePacked("wrong"));
+        address payable recipient = payable(makeAddr('recipient'));
+        bytes32 wrongSecret = keccak256(abi.encodePacked('wrong'));
 
         vm.prank(user1);
         vm.expectRevert(ZkApiCredits.InvalidSecretKey.selector);
@@ -180,7 +192,7 @@ contract ZkApiCreditsTest is Test {
     }
 
     function test_Withdraw_DepositNotFound() public {
-        address payable recipient = payable(makeAddr("recipient"));
+        address payable recipient = payable(makeAddr('recipient'));
 
         vm.expectRevert(ZkApiCredits.DepositNotFound.selector);
         zkApi.withdraw(idCommitment1, recipient, secretKey1);
@@ -196,18 +208,35 @@ contract ZkApiCreditsTest is Test {
         zkApi.deposit{value: depositAmount}(idCommitment1);
 
         // Simulate double-spend detection
-        bytes32 nullifier = keccak256(abi.encodePacked("nullifier1"));
-        ZkApiCredits.Signal memory signal1 = ZkApiCredits.Signal({x: 100, y: 200});
-        ZkApiCredits.Signal memory signal2 = ZkApiCredits.Signal({x: 150, y: 250});
+        bytes32 nullifier = keccak256(abi.encodePacked('nullifier1'));
+        ZkApiCredits.Signal memory signal1 = ZkApiCredits.Signal({
+            x: 100,
+            y: 200
+        });
+        ZkApiCredits.Signal memory signal2 = ZkApiCredits.Signal({
+            x: 150,
+            y: 250
+        });
 
         uint256 slasherBalanceBefore = slasher.balance;
 
         // Slasher reports double-spend
         vm.prank(slasher);
         vm.expectEmit(true, true, true, true);
-        emit DoubleSpendSlashed(secretKey1, nullifier, slasher, depositAmount / 2);
+        emit DoubleSpendSlashed(
+            secretKey1,
+            nullifier,
+            slasher,
+            depositAmount / 2
+        );
 
-        zkApi.slashDoubleSpend(secretKey1, nullifier, nullifier, signal1, signal2);
+        zkApi.slashDoubleSpend(
+            secretKey1,
+            nullifier,
+            nullifier,
+            signal1,
+            signal2
+        );
 
         // Verify slashing
         assertTrue(zkApi.revealedSecretKeys(secretKey1));
@@ -225,17 +254,35 @@ contract ZkApiCreditsTest is Test {
         zkApi.deposit{value: 0.01 ether}(idCommitment1);
 
         // First slash succeeds
-        bytes32 nullifier = keccak256(abi.encodePacked("nullifier1"));
-        ZkApiCredits.Signal memory signal1 = ZkApiCredits.Signal({x: 100, y: 200});
-        ZkApiCredits.Signal memory signal2 = ZkApiCredits.Signal({x: 150, y: 250});
+        bytes32 nullifier = keccak256(abi.encodePacked('nullifier1'));
+        ZkApiCredits.Signal memory signal1 = ZkApiCredits.Signal({
+            x: 100,
+            y: 200
+        });
+        ZkApiCredits.Signal memory signal2 = ZkApiCredits.Signal({
+            x: 150,
+            y: 250
+        });
 
         vm.prank(slasher);
-        zkApi.slashDoubleSpend(secretKey1, nullifier, nullifier, signal1, signal2);
+        zkApi.slashDoubleSpend(
+            secretKey1,
+            nullifier,
+            nullifier,
+            signal1,
+            signal2
+        );
 
         // Second slash fails
         vm.prank(slasher);
         vm.expectRevert(ZkApiCredits.AlreadySlashed.selector);
-        zkApi.slashDoubleSpend(secretKey1, nullifier, nullifier, signal1, signal2);
+        zkApi.slashDoubleSpend(
+            secretKey1,
+            nullifier,
+            nullifier,
+            signal1,
+            signal2
+        );
     }
 
     // ============ Policy Violation Slashing Tests ============
@@ -248,12 +295,16 @@ contract ZkApiCreditsTest is Test {
         zkApi.deposit{value: depositAmount}(idCommitment1);
 
         // Server slashes for policy violation
-        bytes32 nullifier = keccak256(abi.encodePacked("violating_nullifier"));
-        bytes memory proof = abi.encodePacked("zk_proof_data");
+        bytes32 nullifier = keccak256(abi.encodePacked('violating_nullifier'));
+        bytes memory proof = abi.encodePacked('zk_proof_data');
 
         vm.prank(server);
         vm.expectEmit(true, true, false, true);
-        emit PolicyViolationSlashed(nullifier, idCommitment1, depositAmount / 2);
+        emit PolicyViolationSlashed(
+            nullifier,
+            idCommitment1,
+            depositAmount / 2
+        );
 
         zkApi.slashPolicyViolation(nullifier, idCommitment1, proof);
 
@@ -269,8 +320,8 @@ contract ZkApiCreditsTest is Test {
         zkApi.deposit{value: 0.01 ether}(idCommitment1);
 
         // Non-server tries to slash
-        bytes32 nullifier = keccak256(abi.encodePacked("nullifier"));
-        bytes memory proof = abi.encodePacked("proof");
+        bytes32 nullifier = keccak256(abi.encodePacked('nullifier'));
+        bytes memory proof = abi.encodePacked('proof');
 
         vm.prank(user2);
         vm.expectRevert(ZkApiCredits.Unauthorized.selector);
@@ -280,7 +331,7 @@ contract ZkApiCreditsTest is Test {
     // ============ Admin Tests ============
 
     function test_SetServerAddress() public {
-        address newServer = makeAddr("newServer");
+        address newServer = makeAddr('newServer');
 
         zkApi.setServerAddress(newServer);
 

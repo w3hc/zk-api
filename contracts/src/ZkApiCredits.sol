@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: LGPL-3.0
 pragma solidity ^0.8.13;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "./PoseidonHasher.sol";
+import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
+import '@openzeppelin/contracts/utils/Pausable.sol';
+import '@openzeppelin/contracts/access/Ownable.sol';
+import './PoseidonHasher.sol';
 
 /**
  * @title ZkApiCredits
@@ -24,15 +24,14 @@ import "./PoseidonHasher.sol";
  * Using Keccak256 would make proof verification impossible.
  */
 contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
-
     // ============ Structs ============
 
     struct Deposit {
-        bytes32 idCommitment;      // Hash(secretKey) - user's anonymous identity
-        uint256 rlnStake;          // D - Claimable by anyone proving double-spend
-        uint256 policyStake;       // S - Burned (not claimed) for ToS violations
-        uint256 timestamp;         // When the deposit was made
-        bool active;               // Whether this deposit is still active
+        bytes32 idCommitment; // Hash(secretKey) - user's anonymous identity
+        uint256 rlnStake; // D - Claimable by anyone proving double-spend
+        uint256 policyStake; // S - Burned (not claimed) for ToS violations
+        uint256 timestamp; // When the deposit was made
+        bool active; // Whether this deposit is still active
     }
 
     // ============ State Variables ============
@@ -100,7 +99,10 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
 
     event MerkleRootUpdated(bytes32 indexed newRoot, uint256 leafCount);
 
-    event ServerAddressUpdated(address indexed oldAddress, address indexed newAddress);
+    event ServerAddressUpdated(
+        address indexed oldAddress,
+        address indexed newAddress
+    );
 
     event RefundRedeemed(
         bytes32 indexed idCommitment,
@@ -147,8 +149,11 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
      * @dev msg.value should be at least minRlnStake + minPolicyStake
      * @dev 50% goes to RLN stake (D), 50% to policy stake (S)
      */
-    function deposit(bytes32 _idCommitment) external payable nonReentrant whenNotPaused {
-        if (msg.value < minRlnStake + minPolicyStake) revert InsufficientDeposit();
+    function deposit(
+        bytes32 _idCommitment
+    ) external payable nonReentrant whenNotPaused {
+        if (msg.value < minRlnStake + minPolicyStake)
+            revert InsufficientDeposit();
         if (deposits[_idCommitment].active) revert DepositAlreadyExists();
 
         // Split deposit 50/50 between RLN stake and policy stake
@@ -166,7 +171,12 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         identityCommitments.push(_idCommitment);
         _updateMerkleRoot();
 
-        emit DepositMade(_idCommitment, half, msg.value - half, block.timestamp);
+        emit DepositMade(
+            _idCommitment,
+            half,
+            msg.value - half,
+            block.timestamp
+        );
     }
 
     /**
@@ -186,7 +196,9 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         // Verify ownership: Poseidon(secretKey) should equal idCommitment
         // Convert bytes32 to uint256 for Poseidon hash
         uint256 secretKeyUint = uint256(_secretKey);
-        bytes32 computedCommitment = bytes32(PoseidonHasher.hash(secretKeyUint));
+        bytes32 computedCommitment = bytes32(
+            PoseidonHasher.hash(secretKeyUint)
+        );
         if (computedCommitment != _idCommitment) revert InvalidSecretKey();
 
         uint256 totalAmount = userDeposit.rlnStake + userDeposit.policyStake;
@@ -197,8 +209,8 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         userDeposit.policyStake = 0;
 
         // Transfer funds
-        (bool success, ) = _recipient.call{value: totalAmount}("");
-        require(success, "Transfer failed");
+        (bool success, ) = _recipient.call{value: totalAmount}('');
+        require(success, 'Transfer failed');
 
         emit WithdrawalMade(_idCommitment, totalAmount, _recipient);
     }
@@ -229,8 +241,8 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
 
         // Verify the secret key was correctly extracted from two different signals
         // This is a simplified version - full implementation would verify RLN math
-        require(_nullifier1 == _nullifier2, "Nullifiers must match");
-        require(_signal1.x != _signal2.x, "Signals must differ");
+        require(_nullifier1 == _nullifier2, 'Nullifiers must match');
+        require(_signal1.x != _signal2.x, 'Signals must differ');
 
         // Mark as slashed
         revealedSecretKeys[_secretKey] = true;
@@ -241,8 +253,8 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         userDeposit.rlnStake = 0;
 
         // Transfer reward to slasher
-        (bool success, ) = msg.sender.call{value: reward}("");
-        require(success, "Transfer failed");
+        (bool success, ) = msg.sender.call{value: reward}('');
+        require(success, 'Transfer failed');
 
         emit DoubleSpendSlashed(_secretKey, _nullifier1, msg.sender, reward);
     }
@@ -274,8 +286,8 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         userDeposit.policyStake = 0;
 
         // Burn the policy stake (send to 0x0)
-        (bool success, ) = address(0).call{value: amountToBurn}("");
-        require(success, "Burn failed");
+        (bool success, ) = address(0).call{value: amountToBurn}('');
+        require(success, 'Burn failed');
 
         emit PolicyViolationSlashed(_nullifier, _idCommitment, amountToBurn);
     }
@@ -317,10 +329,15 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         redeemedRefunds[_nullifier] = true;
 
         // Transfer refund to recipient
-        (bool success, ) = _recipient.call{value: _refundValue}("");
-        require(success, "Refund transfer failed");
+        (bool success, ) = _recipient.call{value: _refundValue}('');
+        require(success, 'Refund transfer failed');
 
-        emit RefundRedeemed(_idCommitment, _nullifier, _refundValue, _recipient);
+        emit RefundRedeemed(
+            _idCommitment,
+            _nullifier,
+            _refundValue,
+            _recipient
+        );
     }
 
     // ============ View Functions ============
@@ -328,14 +345,20 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     /**
      * @notice Get deposit details for an identity commitment
      */
-    function getDeposit(bytes32 _idCommitment) external view returns (Deposit memory) {
+    function getDeposit(
+        bytes32 _idCommitment
+    ) external view returns (Deposit memory) {
         return deposits[_idCommitment];
     }
 
     /**
      * @notice Get all identity commitments (for Merkle tree construction)
      */
-    function getAllIdentityCommitments() external view returns (bytes32[] memory) {
+    function getAllIdentityCommitments()
+        external
+        view
+        returns (bytes32[] memory)
+    {
         return identityCommitments;
     }
 
@@ -360,7 +383,10 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     /**
      * @notice Update minimum stake requirements
      */
-    function setMinStakes(uint256 _minRlnStake, uint256 _minPolicyStake) external onlyOwner {
+    function setMinStakes(
+        uint256 _minRlnStake,
+        uint256 _minPolicyStake
+    ) external onlyOwner {
         minRlnStake = _minRlnStake;
         minPolicyStake = _minPolicyStake;
     }
@@ -405,7 +431,10 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
 
             uint256 currentHash = uint256(identityCommitments[0]);
             for (uint256 i = 1; i < len; i++) {
-                currentHash = PoseidonHasher.hash(currentHash, uint256(identityCommitments[i]));
+                currentHash = PoseidonHasher.hash(
+                    currentHash,
+                    uint256(identityCommitments[i])
+                );
             }
             merkleRoot = bytes32(currentHash);
         }
@@ -420,7 +449,7 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     function _verifyPolicyProof(bytes calldata _proof) internal pure {
         // In production: Verify ZK proof that links nullifier to idCommitment
         // For now, we accept any proof since only trusted server can call
-        require(_proof.length > 0, "Proof required");
+        require(_proof.length > 0, 'Proof required');
     }
 
     /**
