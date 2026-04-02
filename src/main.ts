@@ -9,6 +9,7 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { SanitizedLogger } from './logging/sanitized-logger';
 import { TeeExceptionFilter } from './filters/tee-exception.filter';
+import { ProofVerifierService } from './zk-api/proof-verifier.service';
 
 async function bootstrap() {
   const isProd = process.env.NODE_ENV === 'production';
@@ -26,6 +27,21 @@ async function bootstrap() {
     httpsOptions,
     logger: isProd ? new SanitizedLogger() : undefined,
   });
+
+  // CRITICAL: Validate proof verification is ready for production
+  if (isProd) {
+    const proofVerifierService =
+      app.get<ProofVerifierService>(ProofVerifierService);
+
+    if (!proofVerifierService.isProductionReady()) {
+      throw new Error(
+        'FATAL: Cannot start in production mode without real proof verification. ' +
+          'Configure circuit artifacts (verification key) before deploying.',
+      );
+    }
+
+    console.log('✓ Proof verification configured for production');
+  }
 
   // Security headers - protects against common web vulnerabilities
   // Enhanced configuration to minimize metadata leakage
