@@ -174,6 +174,70 @@ describe('ZkApiService', () => {
         ForbiddenException,
       );
     });
+
+    it('should enforce per-nullifier rate limiting', async () => {
+      jest.spyOn(proofVerifier, 'verify').mockReturnValue(true);
+      jest.spyOn(ethRateOracle, 'usdToWei').mockResolvedValue(BigInt(100000));
+
+      // Create requests with different nullifiers (valid hex numbers)
+      const request1 = { ...validRequest, nullifier: '0xaaa111' };
+      const request2 = { ...validRequest, nullifier: '0xbbb222' };
+      const request3 = { ...validRequest, nullifier: '0xccc333' };
+      const request4 = { ...validRequest, nullifier: '0xddd444' };
+
+      // First 3 requests with different nullifiers should succeed
+      await service.handleRequest(request1);
+      await service.handleRequest(request2);
+      await service.handleRequest(request3);
+
+      // Clear nullifier store to allow reuse (we're testing rate limiting, not double-spend)
+      nullifierStore.clear();
+
+      // 4th request with a new nullifier that hasn't hit limit should succeed
+      await expect(service.handleRequest(request4)).resolves.toBeDefined();
+
+      // Now attempt 4 rapid requests with the same nullifier
+      const rapidRequest = { ...validRequest, nullifier: '0x123456789abc' };
+      nullifierStore.clear();
+      await service.handleRequest(rapidRequest);
+
+      nullifierStore.clear();
+      await service.handleRequest(rapidRequest);
+
+      nullifierStore.clear();
+      await service.handleRequest(rapidRequest);
+
+      // 4th rapid request should be rate limited
+      nullifierStore.clear();
+      await expect(service.handleRequest(rapidRequest)).rejects.toThrow(
+        'Rate limit exceeded for this nullifier',
+      );
+    });
+
+    it('should allow requests after rate limit window expires', async () => {
+      jest.spyOn(proofVerifier, 'verify').mockReturnValue(true);
+      jest.spyOn(ethRateOracle, 'usdToWei').mockResolvedValue(BigInt(100000));
+
+      // Use 3 attempts (valid hex number)
+      const request = { ...validRequest, nullifier: '0xfedcba987654' };
+      nullifierStore.clear();
+      await service.handleRequest(request);
+
+      nullifierStore.clear();
+      await service.handleRequest(request);
+
+      nullifierStore.clear();
+      await service.handleRequest(request);
+
+      // Check remaining attempts
+      expect(nullifierStore.getRemainingAttempts('0xfedcba987654')).toBe(0);
+
+      // Should be rate limited now
+      nullifierStore.clear();
+      await expect(service.handleRequest(request)).rejects.toThrow(
+        'Rate limit exceeded',
+      );
+    });
   });
 
   describe('getServerPublicKey', () => {
