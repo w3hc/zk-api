@@ -26,8 +26,8 @@ describe('TimingProtectionInterceptor', () => {
         .intercept(mockExecutionContext, mockCallHandler)
         .subscribe(() => {
           const elapsed = Date.now() - startTime;
-          // Should take at least MIN_RESPONSE_TIME (100ms) + jitter (0-20ms)
-          expect(elapsed).toBeGreaterThanOrEqual(100);
+          // Should take at least MIN_RESPONSE_TIME (10ms in test mode) + jitter (0-20ms)
+          expect(elapsed).toBeGreaterThanOrEqual(10);
           resolve();
         });
     });
