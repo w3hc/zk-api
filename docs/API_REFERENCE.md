@@ -166,7 +166,7 @@ curl -k -X POST https://localhost:3000/zk-api/request \
 
 ### POST /zk-api/redeem-refund
 
-Redeem a signed refund ticket on-chain.
+Redeem a signed refund ticket onchain.
 
 **Authentication:** None (refund ticket signature authenticates)
 
@@ -233,9 +233,9 @@ curl -k -X POST https://localhost:3000/zk-api/redeem-refund \
 **Important Notes:**
 
 - Refund tickets can only be redeemed once
-- The smart contract verifies the EdDSA signature on-chain
+- The smart contract verifies the EdDSA signature onchain
 - If the nullifier was slashed for double-spending, redemption will fail
-- Redemption requires on-chain gas fees (paid by caller)
+- Redemption requires onchain gas fees (paid by caller)
 
 ---
 
@@ -267,7 +267,7 @@ curl -k https://localhost:3000/zk-api/server-pubkey
 }
 ```
 
-**Use Case:** Clients can verify refund ticket signatures off-chain before attempting to redeem on-chain.
+**Use Case:** Clients can verify refund ticket signatures off-chain before attempting to redeem onchain.
 
 ---
 

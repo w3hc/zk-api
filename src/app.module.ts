@@ -30,7 +30,8 @@ import { RequestSanitizerMiddleware } from './middleware/request-sanitizer.middl
     ThrottlerModule.forRoot([
       {
         ttl: 60000, // 60 seconds
-        limit: 10, // 10 requests per minute per request fingerprint
+        // Higher limit in development for testing, lower in production
+        limit: process.env.NODE_ENV === 'production' ? 10 : 100,
       },
     ]),
     AuthModule,

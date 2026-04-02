@@ -15,7 +15,7 @@ interface RlnSignal {
 
 /**
  * Service for submitting slashing transactions to the ZkApiCredits smart contract
- * Handles double-spend detection and on-chain slashing
+ * Handles double-spend detection and onchain slashing
  */
 @Injectable()
 export class SlashingService {

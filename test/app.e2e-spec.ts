@@ -182,10 +182,10 @@ describe('Application (e2e)', () => {
       await request(app.getHttpServer()).get('/health').expect(200);
       const duration = Date.now() - start;
 
-      // With timing protection, all responses take at least 100ms + jitter (0-20ms)
-      // This prevents timing-based side-channel attacks
-      expect(duration).toBeGreaterThanOrEqual(100);
-      expect(duration).toBeLessThan(150); // 100ms + 20ms jitter + some overhead
+      // With timing protection, all responses take at least 10ms in test mode + jitter (0-20ms)
+      // In production, this is 100ms to prevent timing-based side-channel attacks
+      expect(duration).toBeGreaterThanOrEqual(10);
+      expect(duration).toBeLessThan(50); // 10ms + 20ms jitter + some overhead
     });
 
     it('attestation endpoint should respond in reasonable time', async () => {

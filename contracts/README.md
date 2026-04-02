@@ -167,7 +167,7 @@ Current gas costs (approximate):
 ### Known Limitations
 1. **Simplified Merkle tree** - Uses basic Poseidon hashing, not optimized incremental tree
 2. **Placeholder EdDSA verification** - Accepts all non-zero signatures (TODO: real verification)
-3. **No proof verification** - ZK proof verification not yet implemented on-chain
+3. **No proof verification** - ZK proof verification not yet implemented onchain
 
 ### Security Model
 - **RLN stake** - Claimable by anyone proving double-spend

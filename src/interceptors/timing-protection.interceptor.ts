@@ -5,7 +5,7 @@ import {
   CallHandler,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
-import { tap, delay } from 'rxjs/operators';
+import { mergeMap } from 'rxjs/operators';
 
 /**
  * Timing protection interceptor for TEE environments
@@ -22,14 +22,15 @@ import { tap, delay } from 'rxjs/operators';
 @Injectable()
 export class TimingProtectionInterceptor implements NestInterceptor {
   // Minimum response time in milliseconds to prevent timing attacks
-  private readonly MIN_RESPONSE_TIME = 100;
+  // Lower delay in test environment for faster test execution
+  private readonly MIN_RESPONSE_TIME =
+    process.env.NODE_ENV === 'test' ? 10 : 100;
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const startTime = Date.now();
 
     return next.handle().pipe(
-      delay(0), // Ensure observable completes first
-      tap(() => {
+      mergeMap(async (data: unknown) => {
         const elapsed = Date.now() - startTime;
         const delayNeeded = Math.max(0, this.MIN_RESPONSE_TIME - elapsed);
 
@@ -37,11 +38,10 @@ export class TimingProtectionInterceptor implements NestInterceptor {
         const jitter = Math.random() * 20;
         const totalDelay = delayNeeded + jitter;
 
-        // Use synchronous delay for accurate timing
-        const end = Date.now() + totalDelay;
-        while (Date.now() < end) {
-          // Busy wait to ensure accurate timing
-        }
+        // Non-blocking delay using Promise to avoid blocking event loop
+        await new Promise((resolve) => setTimeout(resolve, totalDelay));
+
+        return data;
       }),
     );
   }

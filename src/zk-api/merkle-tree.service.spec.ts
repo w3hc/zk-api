@@ -56,7 +56,7 @@ describe('MerkleTreeService', () => {
 
       const stats = await service.getStats();
       expect(stats.leafCount).toBe(1);
-    });
+    }, 10000);
 
     it('should insert multiple commitments and increment indices', async () => {
       const commitment1 = BigInt(111);

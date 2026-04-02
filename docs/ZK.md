@@ -26,13 +26,13 @@ Each user has a secret key `k` and generates an identity commitment:
 ID = Poseidon(k)
 ```
 
-This commitment is stored in the Merkle tree anonymity set on-chain, allowing users to prove membership without revealing their identity.
+This commitment is stored in the Merkle tree anonymity set onchain, allowing users to prove membership without revealing their identity.
 
 ### Merkle Tree Anonymity Set
 
 - **Structure**: 20 levels deep, supporting up to 1,048,576 identities
 - **Hash Function**: Poseidon (ZK-friendly)
-- **Storage**: On-chain root, off-chain tree construction
+- **Storage**: Onchain root, off-chain tree construction
 - **Purpose**: Enables privacy-preserving membership proofs
 
 ## Architecture
@@ -193,7 +193,7 @@ function deposit(bytes32 idCommitment) external payable
 // Withdraw unused funds
 function withdraw(bytes32 idCommitment, address payable recipient, bytes32 secretKey) external
 
-// Redeem refund tickets on-chain
+// Redeem refund tickets onchain
 function redeemRefund(
     bytes32 nullifier,
     uint256 value,
@@ -211,6 +211,9 @@ function slashDoubleSpend(
 
 // Slash policy violators (server-only)
 function slashPolicyViolation(bytes32 nullifier, bytes32 idCommitment) external onlyOwner
+
+// Check if nullifier has been used (double-spend or refund redemption)
+function isNullifierUsed(bytes32 nullifier) external view returns (bool)
 ```
 
 **Dual Staking**:
@@ -286,7 +289,7 @@ Get server's EdDSA public key for refund signature verification.
 
 #### GET `/zk-api/merkle-root`
 
-Get current Merkle root from on-chain contract.
+Get current Merkle root from onchain contract.
 
 ## Protocol Flow
 
@@ -297,7 +300,7 @@ Get current Merkle root from on-chain contract.
 const secretKey = generateRandomKey();
 const idCommitment = poseidon([secretKey]);
 
-// On-chain
+// Onchain
 await zkApiCredits.deposit(idCommitment, { value: parseEther('0.01') });
 ```
 
@@ -458,8 +461,8 @@ Assuming ETH = $2,000:
 1. **Secret Key Protection**: Users must never reveal their secret key `k`
 2. **Signal Randomness**: Each `signalX` must be cryptographically random
 3. **Nullifier Uniqueness**: Each ticket index can only be used once
-4. **Merkle Proof Freshness**: Clients must use current on-chain Merkle root
-5. **Proof Replay**: Nullifiers are tracked on-chain to prevent replay attacks
+4. **Merkle Proof Freshness**: Clients must use current onchain Merkle root
+5. **Proof Replay**: Nullifiers are tracked onchain to prevent replay attacks
 6. **Server Accountability**: Policy stake is burned (not claimed) to prevent profit from false bans
 
 ## Privacy Guarantees
@@ -523,7 +526,7 @@ circom api_credit_proof.circom --r1cs --wasm --sym
 - [x] Replace in-memory nullifier store with persistent database (SQLite)
 - [x] Implement proper EdDSA with Babyjubjub curve (circuit-compatible)
 - [ ] Implement proper key management (HSM/KMS) for EdDSA signing key
-- [ ] Add event listener for on-chain Deposit events
+- [ ] Add event listener for onchain Deposit events
 - [ ] Deploy contract to testnet/mainnet
 - [ ] Security audit (contract + circuit + backend)
 - [ ] Rate limiting per IP/nullifier

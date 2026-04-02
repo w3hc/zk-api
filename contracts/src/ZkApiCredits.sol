@@ -20,7 +20,7 @@ import './PoseidonHasher.sol';
  * - Nullifiers: Poseidon(Poseidon(secretKey, ticketIndex))
  * - Refund verification: Poseidon(refundValue)
  *
- * All on-chain hashing MUST use Poseidon to match the circuit's constraints.
+ * All onchain hashing MUST use Poseidon to match the circuit's constraints.
  * Using Keccak256 would make proof verification impossible.
  */
 contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
@@ -367,6 +367,16 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
      */
     function getAnonymitySetSize() external view returns (uint256) {
         return identityCommitments.length;
+    }
+
+    /**
+     * @notice Check if a nullifier has been used (either slashed or redeemed)
+     * @param _nullifier The nullifier to check
+     * @return bool True if the nullifier has been used/slashed/redeemed
+     * @dev Used for double-spend prevention and refund redemption checks
+     */
+    function isNullifierUsed(bytes32 _nullifier) external view returns (bool) {
+        return slashedNullifiers[_nullifier] || redeemedRefunds[_nullifier];
     }
 
     // ============ Admin Functions ============
