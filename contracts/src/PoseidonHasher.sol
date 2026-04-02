@@ -12,7 +12,7 @@ import 'poseidon-solidity/PoseidonT3.sol';
  *
  * This ensures complete compatibility between:
  * - Circuit constraints (circomlib Poseidon)
- * - On-chain verification (poseidon-solidity)
+ * - Onchain verification (poseidon-solidity)
  * - Off-chain computations (circomlibjs)
  */
 library PoseidonHasher {

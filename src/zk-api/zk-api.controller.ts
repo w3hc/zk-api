@@ -76,7 +76,7 @@ export class ZkApiController {
   @ApiOperation({
     summary: 'Redeem a signed refund ticket',
     description:
-      'Submit a signed refund ticket obtained from an API response to claim the refund on-chain. ' +
+      'Submit a signed refund ticket obtained from an API response to claim the refund onchain. ' +
       'The refund will be transferred to the specified recipient address.',
   })
   @ApiResponse({

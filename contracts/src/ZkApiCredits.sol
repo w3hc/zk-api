@@ -20,7 +20,7 @@ import './PoseidonHasher.sol';
  * - Nullifiers: Poseidon(Poseidon(secretKey, ticketIndex))
  * - Refund verification: Poseidon(refundValue)
  *
- * All on-chain hashing MUST use Poseidon to match the circuit's constraints.
+ * All onchain hashing MUST use Poseidon to match the circuit's constraints.
  * Using Keccak256 would make proof verification impossible.
  */
 contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {

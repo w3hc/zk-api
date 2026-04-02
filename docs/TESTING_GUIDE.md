@@ -7,7 +7,7 @@ This guide demonstrates how to run a complete end-to-end test of the ZK API syst
 - **Solidity Smart Contract**: Deposit management, stake slashing, and refund redemption
 - **Zero-Knowledge Proofs**: Privacy-preserving proof generation using Poseidon hash and RLN (Rate-Limit Nullifiers)
 - **Merkle Tree**: Anonymous set membership verification
-- **EdDSA Signatures**: Server-signed refund tickets for on-chain redemption
+- **EdDSA Signatures**: Server-signed refund tickets for onchain redemption
 - **TEE Integration**: Trusted Execution Environment with cryptographic attestation
 
 ## What This Test Proves
@@ -27,14 +27,14 @@ This guide demonstrates how to run a complete end-to-end test of the ZK API syst
 
 ### 3. Cryptographic Primitives
 - ✅ **Poseidon Hash**: ZK-friendly hash function for commitments and nullifiers
-- ✅ **EdDSA Signatures**: Server signs refund tickets that can be verified on-chain
+- ✅ **EdDSA Signatures**: Server signs refund tickets that can be verified onchain
 - ✅ **Groth16 Proofs**: Succinct zero-knowledge proofs (mock implementation for testing)
 
 ### 4. Privacy Guarantees
 - ✅ Requests are anonymous - server cannot link requests to deposit addresses
 - ✅ Rate limiting via nullifiers prevents abuse without breaking anonymity
 - ✅ Double-spending is deterred by stake slashing
-- ✅ Refunds are issued as signed tickets, redeemable on-chain
+- ✅ Refunds are issued as signed tickets, redeemable onchain
 
 ## Complete Test Flow
 
@@ -233,7 +233,7 @@ curl -k -X POST https://localhost:3000/zk-api/request \
 - ✅ Nullifier is checked for uniqueness (prevents double-spend)
 - ✅ Request is processed anonymously
 - ✅ Server issues signed refund ticket for unused credits
-- ✅ EdDSA signature can be verified on-chain for refund redemption
+- ✅ EdDSA signature can be verified onchain for refund redemption
 
 ### Step 7: Test Double-Spend Detection
 
@@ -323,7 +323,7 @@ bash scripts/test-complete-flow.sh
 1. ✅ Checks if Anvil is running
 2. ✅ Deploys the ZkApiCredits contract
 3. ✅ Makes a test deposit (0.2 ETH with random identity commitment)
-4. ✅ Verifies the deposit on-chain
+4. ✅ Verifies the deposit onchain
 5. ✅ Checks if API server is running
 6. ✅ **Generates a real ZK proof** using Poseidon hash and RLN signals
 7. ✅ Makes an API request with cryptographic proof and displays the response
@@ -374,7 +374,7 @@ The API response includes:
 - Claude API response text
 - Actual cost in wei (deducted from deposit)
 - Refund ticket with unused credit amount
-- EdDSA signature (R8x, R8y, S) for on-chain refund redemption
+- EdDSA signature (R8x, R8y, S) for onchain refund redemption
 - Token usage statistics (input/output tokens)
 
 **Note:** Each run generates a fresh random secret key and nullifier, so the test can be run multiple times without conflicts. The proof uses real cryptographic primitives (Poseidon hash for commitments, RLN signals for slashing detection).
@@ -491,7 +491,7 @@ Before running the integration tests, ensure:
 To test the complete refund flow:
 
 1. Make an API request and save the refund ticket
-2. Submit the refund ticket to redeem on-chain:
+2. Submit the refund ticket to redeem onchain:
 
 ```bash
 curl -k -X POST https://localhost:3000/zk-api/redeem-refund \
@@ -525,7 +525,7 @@ curl -k -X POST https://localhost:3000/zk-api/redeem-refund \
 - [`scripts/test-complete-flow.sh`](../scripts/test-complete-flow.sh) - Complete deposit → API → refund flow
 - [`scripts/test-double-spend.sh`](../scripts/test-double-spend.sh) - Double-spend prevention test
 - [`scripts/test-invalid-proofs.sh`](../scripts/test-invalid-proofs.sh) - Invalid proof rejection (28 tests)
-- [`scripts/test-refund-redemption.sh`](../scripts/test-refund-redemption.sh) - On-chain refund redemption
+- [`scripts/test-refund-redemption.sh`](../scripts/test-refund-redemption.sh) - Onchain refund redemption
 
 ### Helper Scripts
 - [`scripts/generate-proof.ts`](../scripts/generate-proof.ts) - Generate ZK proofs for API requests
@@ -609,11 +609,11 @@ The ZK circuit proves the following statement:
   - `y1 = k + a*x1`
   - `y2 = k + a*x2`
 - Solving reveals `k = (x2*y1 - x1*y2) / (x2 - x1)`
-- Anyone can claim the RLN stake by proving double-spend on-chain
+- Anyone can claim the RLN stake by proving double-spend onchain
 
 ### Refund Security
 - EdDSA signatures are unforgeable
-- Server's public key is stored on-chain
+- Server's public key is stored onchain
 - Refunds can only be redeemed once (nullifier tracking)
 
 ## Next Steps

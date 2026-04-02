@@ -46,11 +46,11 @@ The system consists of three main layers:
 The smart contract manages the economic guarantees and serves as the source of truth for:
 
 - **Deposits & Withdrawals**: Users deposit ETH along with an identity commitment (Poseidon hash of their secret key)
-- **Merkle Tree**: Maintains an on-chain Merkle tree of all identity commitments (anonymity set)
+- **Merkle Tree**: Maintains an onchain Merkle tree of all identity commitments (anonymity set)
 - **Dual Staking Mechanism**:
   - 50% RLN stake: Claimable by anyone who proves double-spending
   - 50% Policy stake: Burnable by operator for ToS violations (not claimable to prevent false accusations)
-- **Refund Redemption**: Users can redeem server-signed refund tickets on-chain
+- **Refund Redemption**: Users can redeem server-signed refund tickets onchain
 - **Slashing**: Automatic punishment when someone proves you reused a ticket
 
 **Key Functions**:
@@ -162,7 +162,7 @@ The backend orchestrates proof verification, API execution, and refund signing:
      │ ... many requests ...      │                            │
      │                            │                            │
      │ 11. Redeem refunds         │                            │
-     │     on-chain               │                            │
+     │     onchain               │                            │
      ├────────────────────────────┼───────────────────────────>│
      │                            │                            │
      │                            │                            │ 12. Verify EdDSA
@@ -176,7 +176,7 @@ The backend orchestrates proof verification, API execution, and refund signing:
 
 ### Key Privacy Properties
 
-1. **Identity Privacy**: Requests can't be linked to the on-chain deposit
+1. **Identity Privacy**: Requests can't be linked to the onchain deposit
    - ZK proof proves membership without revealing which leaf
    - Merkle tree provides k-anonymity among all depositors
 
@@ -272,9 +272,9 @@ The server signs refund tickets with EdDSA (verifiable in ZK circuits):
 |--------|-----------|
 | **Double-spending** | RLN reveals secret key → automatic slashing |
 | **Proof forgery** | Groth16 soundness guarantee (computationally infeasible) |
-| **Replay attacks** | Nullifiers stored server-side, checked on-chain for refunds |
+| **Replay attacks** | Nullifiers stored server-side, checked onchain for refunds |
 | **Balance draining** | ZK proof ensures balance ≥ maxCost before request |
-| **Server refusing refunds** | Overpayment is minor per request, accumulate and redeem on-chain |
+| **Server refusing refunds** | Overpayment is minor per request, accumulate and redeem onchain |
 | **Sybil attacks** | Each deposit requires real ETH stake |
 | **ToS violations** | Policy stake can be burned (separate from RLN stake) |
 
@@ -322,7 +322,7 @@ The server signs refund tickets with EdDSA (verifiable in ZK circuits):
 - [x] Replace in-memory nullifier store with persistent database (SQLite)
 - [x] Rate limiting per nullifier (hybrid approach: fingerprint + per-nullifier)
 - [ ] Implement HSM/KMS for EdDSA signing key
-- [ ] Add event listener for on-chain Deposit events
+- [ ] Add event listener for onchain Deposit events
 - [ ] Deploy contract to mainnet
 - [ ] Security audit (contract + circuit + backend)
 - [ ] Gas optimization

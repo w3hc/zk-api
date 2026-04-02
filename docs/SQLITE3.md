@@ -71,7 +71,7 @@ CREATE INDEX idx_redeemed_timestamp ON redeemed_refunds(redeemed_at);
 
 ❌ **User payloads** (questions/API requests) - Removed for privacy
 ❌ **User identities** - Cannot link nullifiers to users
-❌ **On-chain addresses** - No direct link between deposits and API usage
+❌ **Onchain addresses** - No direct link between deposits and API usage
 
 ### What We DO Store
 
@@ -89,7 +89,7 @@ The database provides strong privacy because:
 4. **Server Admin Limitations**: Even with full database access, server maintainers cannot:
    - See what users asked
    - Identify which user made which request
-   - Link on-chain deposits to specific API calls (without timing analysis)
+   - Link onchain deposits to specific API calls (without timing analysis)
 
 ### What Server Maintainers CAN See
 
@@ -357,7 +357,7 @@ If the database is lost:
 ### Potential Enhancements
 
 1. **Nullifier Expiration**: Archive old nullifiers after N days
-2. **Blockchain Sync**: Cross-reference with on-chain events
+2. **Blockchain Sync**: Cross-reference with onchain events
 3. **Distributed Storage**: Replicate to multiple nodes
 4. **Read Replicas**: Scale read operations
 5. **Compression**: Compress old data

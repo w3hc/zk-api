@@ -154,7 +154,7 @@ else
 fi
 echo ""
 
-# Check on-chain nullifier status
+# Check onchain nullifier status
 echo "Step 6: Verifying nullifier tracking..."
 IS_USED=$(cast call $CONTRACT_ADDRESS \
   "isNullifierUsed(bytes32)(bool)" \
@@ -162,12 +162,12 @@ IS_USED=$(cast call $CONTRACT_ADDRESS \
   --rpc-url $RPC_URL 2>/dev/null || echo "unknown")
 
 if [ "$IS_USED" = "true" ]; then
-  echo "✓ Nullifier is marked on-chain (refund redeemed or slashed)"
+  echo "✓ Nullifier is marked onchain (refund redeemed or slashed)"
 elif [ "$IS_USED" = "false" ]; then
-  echo "✓ Nullifier tracked in API database (expected - not yet submitted on-chain)"
-  echo "   Note: Nullifiers are only recorded on-chain during refund redemption or slashing"
+  echo "✓ Nullifier tracked in API database (expected - not yet submitted onchain)"
+  echo "   Note: Nullifiers are only recorded onchain during refund redemption or slashing"
 else
-  echo "⚠️  Could not check on-chain status (contract method may not exist)"
+  echo "⚠️  Could not check onchain status (contract method may not exist)"
   # Set to empty so we don't fail the test on this
   IS_USED=""
 fi
@@ -182,7 +182,7 @@ if [ "$DOUBLE_SPEND_PREVENTED" = "true" ]; then
   echo "   ✓ First request with nullifier succeeded"
   echo "   ✓ Second request with same nullifier was rejected"
   if [ "$IS_USED" = "true" ]; then
-    echo "   ✓ Nullifier is marked as used on-chain"
+    echo "   ✓ Nullifier is marked as used onchain"
   else
     echo "   ✓ Nullifier is tracked in API database"
   fi

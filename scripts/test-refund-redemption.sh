@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Test refund redemption on-chain
+# Test refund redemption onchain
 set -e
 
 echo "=== Testing Refund Redemption ==="
@@ -74,12 +74,12 @@ if [ "$IS_REDEEMED" = "true" ]; then
 elif [ "$IS_REDEEMED" = "false" ]; then
   echo "✓ Nullifier is not yet redeemed"
 else
-  echo "⚠️  Could not check on-chain status (contract may not have isNullifierUsed)"
+  echo "⚠️  Could not check onchain status (contract may not have isNullifierUsed)"
 fi
 echo ""
 
 # Redeem the refund
-echo "Step 4: Redeeming refund on-chain..."
+echo "Step 4: Redeeming refund onchain..."
 echo "   Calling redeemRefund(idCommitment, nullifier, value, timestamp, signature, recipient)..."
 
 # The contract expects: redeemRefund(bytes32 idCommitment, bytes32 nullifier, uint256 value, uint256 timestamp, EdDSASignature signature, address payable recipient)

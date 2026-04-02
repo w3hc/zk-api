@@ -53,7 +53,7 @@ export class BlockchainService implements OnModuleInit {
         `Connected to ZkApiCredits at ${contractAddress}. Merkle root: ${merkleRoot}`,
       );
 
-      // Sync Merkle tree with on-chain state
+      // Sync Merkle tree with onchain state
       await this.syncMerkleTree();
 
       // Start listening for new deposits
@@ -64,7 +64,7 @@ export class BlockchainService implements OnModuleInit {
   }
 
   /**
-   * Sync off-chain Merkle tree with on-chain identity commitments
+   * Sync off-chain Merkle tree with onchain identity commitments
    */
   async syncMerkleTree(): Promise<void> {
     if (!this.contract) {
@@ -77,7 +77,7 @@ export class BlockchainService implements OnModuleInit {
       await this.merkleTree.clear();
 
       if (commitments.length === 0) {
-        this.logger.log('No identity commitments found on-chain');
+        this.logger.log('No identity commitments found onchain');
         return;
       }
 
@@ -91,15 +91,13 @@ export class BlockchainService implements OnModuleInit {
         `Merkle tree synced: ${commitments.length} commitments loaded`,
       );
       this.logger.debug(`Off-chain root: 0x${offChainRoot.toString(16)}`);
-      this.logger.debug(`On-chain root:  ${onChainRoot}`);
+      this.logger.debug(`Onchain root:  ${onChainRoot}`);
 
       // Verify roots match
       const offChainRootHex =
         '0x' + offChainRoot.toString(16).padStart(64, '0');
       if (offChainRootHex.toLowerCase() !== onChainRoot.toLowerCase()) {
-        this.logger.warn(
-          'Merkle root mismatch between off-chain and on-chain!',
-        );
+        this.logger.warn('Merkle root mismatch between off-chain and onchain!');
       }
     } catch (error) {
       this.logger.error('Failed to sync Merkle tree', error);
@@ -264,7 +262,7 @@ export class BlockchainService implements OnModuleInit {
 
   /**
    * Add identity commitment to off-chain Merkle tree
-   * Note: This should be called when monitoring on-chain Deposit events
+   * Note: This should be called when monitoring onchain Deposit events
    */
   async addIdentityCommitment(idCommitment: bigint): Promise<number> {
     const index = await this.merkleTree.insert(idCommitment);
@@ -275,7 +273,7 @@ export class BlockchainService implements OnModuleInit {
   }
 
   /**
-   * Start monitoring on-chain deposit events
+   * Start monitoring onchain deposit events
    * Automatically updates off-chain Merkle tree when new deposits are made
    */
   private startEventMonitoring(): void {
@@ -331,7 +329,7 @@ export class BlockchainService implements OnModuleInit {
       const commitmentBigInt = BigInt(idCommitment);
       const index = await this.addIdentityCommitment(commitmentBigInt);
 
-      // Verify sync with on-chain root
+      // Verify sync with onchain root
       const offChainRoot = await this.merkleTree.getRoot();
       const onChainRoot = await this.getMerkleRoot();
       const offChainRootHex =
@@ -343,7 +341,7 @@ export class BlockchainService implements OnModuleInit {
         );
       } else {
         this.logger.error(
-          `Merkle root mismatch after deposit! Off-chain: ${offChainRootHex}, On-chain: ${onChainRoot}`,
+          `Merkle root mismatch after deposit! Off-chain: ${offChainRootHex}, Onchain: ${onChainRoot}`,
         );
         // Attempt full resync
         await this.syncMerkleTree();
@@ -388,7 +386,7 @@ export class BlockchainService implements OnModuleInit {
   }
 
   /**
-   * Redeem a signed refund ticket on-chain
+   * Redeem a signed refund ticket onchain
    */
   async redeemRefund(params: {
     idCommitment: string;

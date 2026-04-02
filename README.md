@@ -10,7 +10,7 @@ TS implementation of the [ZK API Usage Credits: LLMs and Beyond](https://ethrese
 2. **Generate** ZK proof of solvency for each API request
 3. **Request** any API service anonymously with proof and nullifier (Claude API example included)
 4. **Receive** refund ticket for unused credits
-5. **Redeem** accumulated refunds on-chain
+5. **Redeem** accumulated refunds onchain
 
 ## Install
 
@@ -69,7 +69,7 @@ Or run individual ZK tests:
 bash scripts/test-complete-flow.sh      # Complete deposit → API → refund flow
 bash scripts/test-double-spend.sh       # Double-spend prevention
 bash scripts/test-invalid-proofs.sh     # Invalid proof rejection
-bash scripts/test-refund-redemption.sh  # On-chain refund redemption
+bash scripts/test-refund-redemption.sh  # Onchain refund redemption
 ```
 
 ## Run

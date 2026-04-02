@@ -150,9 +150,9 @@ export class ProofVerifierService {
           return false;
         }
 
-        // Verify Merkle root matches on-chain root
+        // Verify Merkle root matches onchain root
         if (onChainMerkleRoot !== publicInputs.merkleRoot) {
-          this.logger.warn('Merkle root mismatch with on-chain state', {
+          this.logger.warn('Merkle root mismatch with onchain state', {
             expected: onChainMerkleRoot,
             provided: publicInputs.merkleRoot,
           });

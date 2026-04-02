@@ -650,11 +650,11 @@ Phala provides comprehensive attestation capabilities. When running ZK API on Ph
 2. **Phala's Attestation Services:**
    - [Get Attestation](https://docs.phala.com/phala-cloud/attestation/get-attestation) - Dashboard and CLI access to attestation reports
    - [Verify Your Application](https://docs.phala.com/phala-cloud/attestation/verify-your-application) - Verification methods
-   - [On-chain Verification](https://docs.phala.com/phala-cloud/attestation/overview) - Smart contract verification using Automata's DCAP verifier
+   - [Onchain Verification](https://docs.phala.com/phala-cloud/attestation/overview) - Smart contract verification using Automata's DCAP verifier
    - CLI command: `phala cvms attestation` to view TEE attestation reports
 
 3. **Verification Options:**
-   - **Smart Contract:** Use Automata's on-chain DCAP verifier (Solidity)
+   - **Smart Contract:** Use Automata's onchain DCAP verifier (Solidity)
    - **Intel DCAP:** Standard Intel verification service
    - **Phala Trust Center:** Automated verification platform
    - **Custom Integration:** ZK API can integrate with Phala's verification APIs
@@ -682,7 +682,7 @@ When deploying on Phala/Dstack:
 
 1. **Intel SGX not supported**: If you need SGX specifically, ZK API would require additional development to support SGX's different attestation APIs (`/dev/sgx_enclave`, `/dev/sgx_provision`)
 
-2. **Platform-specific features**: Phala provides additional services (key management, decentralized verification, on-chain attestation) that may require custom integration beyond ZK API's default KMS integration
+2. **Platform-specific features**: Phala provides additional services (key management, decentralized verification, onchain attestation) that may require custom integration beyond ZK API's default KMS integration
 
 3. **GPU TEE**: ZK API does not support [Phala's GPU TEE infrastructure](https://docs.phala.com/phala-cloud/confidential-ai/confidential-gpu/deploy-and-verify) (NVIDIA H100/H200)
 
