@@ -19,6 +19,7 @@ describe('ZkApiService', () => {
   let nullifierStore: NullifierStoreService;
   let proofVerifier: ProofVerifierService;
   let ethRateOracle: EthRateOracleService;
+  let proofGenService: ProofGenService;
 
   // Suppress expected circomlibjs teardown errors
   const originalConsoleError = console.error;
@@ -99,6 +100,7 @@ describe('ZkApiService', () => {
     nullifierStore = module.get<NullifierStoreService>(NullifierStoreService);
     proofVerifier = module.get<ProofVerifierService>(ProofVerifierService);
     ethRateOracle = module.get<EthRateOracleService>(EthRateOracleService);
+    proofGenService = module.get<ProofGenService>(ProofGenService);
 
     // Initialize database
     await module.init();
@@ -183,6 +185,66 @@ describe('ZkApiService', () => {
       await expect(service.handleRequest(doubleSpendRequest)).rejects.toThrow(
         ForbiddenException,
       );
+    });
+
+    it('should correctly extract secret key using field arithmetic', async () => {
+      // Generate two signals with the same secret key using ProofGenService
+      const secretKey = BigInt(12345);
+      const ticketIndex = BigInt(1);
+      const signalX1 = BigInt(100);
+      const signalX2 = BigInt(200);
+
+      const signal1 = await proofGenService.generateRLNSignal(
+        secretKey,
+        ticketIndex,
+        signalX1,
+      );
+      const signal2 = await proofGenService.generateRLNSignal(
+        secretKey,
+        ticketIndex,
+        signalX2,
+      );
+
+      // Create request that will trigger double-spend detection
+      jest.spyOn(proofVerifier, 'verify').mockReturnValue(true);
+      jest.spyOn(ethRateOracle, 'usdToWei').mockResolvedValue(BigInt(100000));
+
+      const request1: ZkApiRequestDto = {
+        ...validRequest,
+        signal: {
+          x: '0x' + signalX1.toString(16),
+          y: '0x' + signal1.signalY.toString(16),
+        },
+      };
+
+      const request2: ZkApiRequestDto = {
+        ...validRequest,
+        signal: {
+          x: '0x' + signalX2.toString(16),
+          y: '0x' + signal2.signalY.toString(16),
+        },
+      };
+
+      // First request succeeds
+      await service.handleRequest(request1);
+
+      // Second request should trigger secret key extraction
+      // We capture the error to verify the secret key was extracted
+      try {
+        await service.handleRequest(request2);
+        fail('Should have thrown ForbiddenException');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ForbiddenException);
+        expect((error as Error).message).toContain('Double-spend detected');
+      }
+
+      // Verify that the extracted secret key matches by using ProofGenService
+      const recoveredKey = await proofGenService.recoverSecretKey(
+        { x: signalX1, y: signal1.signalY },
+        { x: signalX2, y: signal2.signalY },
+      );
+
+      expect(recoveredKey).toEqual(secretKey);
     });
 
     it('should enforce per-nullifier rate limiting', async () => {
