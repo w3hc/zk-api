@@ -269,4 +269,136 @@ describe('ProofVerifierService', () => {
       expect(result).toBe(false);
     });
   });
+
+  describe('isProductionReady', () => {
+    it('should return true when snarkjs is available', () => {
+      snarkjsProofService.isAvailable.mockReturnValue(true);
+      expect(service.isProductionReady()).toBe(true);
+    });
+
+    it('should return false when snarkjs is not available', () => {
+      snarkjsProofService.isAvailable.mockReturnValue(false);
+      expect(service.isProductionReady()).toBe(false);
+    });
+  });
+
+  describe('production mode enforcement', () => {
+    let originalEnv: string | undefined;
+
+    beforeEach(() => {
+      originalEnv = process.env.NODE_ENV;
+    });
+
+    afterEach(() => {
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    it('should throw error in production mode when snarkjs not available', async () => {
+      process.env.NODE_ENV = 'production';
+      snarkjsProofService.isAvailable.mockReturnValue(false);
+
+      await expect(
+        service.verifyWithInputs(mockProof, mockPublicInputs),
+      ).rejects.toThrow(
+        'Proof verification not available in production mode. Configure circuit artifacts.',
+      );
+    });
+
+    it('should allow verification in production when snarkjs is available', async () => {
+      process.env.NODE_ENV = 'production';
+      snarkjsProofService.isAvailable.mockReturnValue(true);
+      snarkjsProofService.verifyProof.mockResolvedValue(true);
+
+      const result = await service.verifyWithInputs(
+        mockProof,
+        mockPublicInputs,
+      );
+
+      expect(result).toBe(true);
+    });
+
+    it('should allow mock verification in dev mode', async () => {
+      process.env.NODE_ENV = 'development';
+      snarkjsProofService.isAvailable.mockReturnValue(false);
+      proofGenService.verifyMockProof.mockReturnValue(true);
+
+      const result = await service.verifyWithInputs(
+        mockProof,
+        mockPublicInputs,
+      );
+
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('metrics', () => {
+    beforeEach(() => {
+      // Reset metrics
+      process.env.NODE_ENV = 'development';
+    });
+
+    it('should track successful verifications', async () => {
+      snarkjsProofService.isAvailable.mockReturnValue(false);
+      proofGenService.verifyMockProof.mockReturnValue(true);
+
+      await service.verifyWithInputs(mockProof, mockPublicInputs);
+
+      const metrics = service.getMetrics();
+      expect(metrics.total).toBe(1);
+      expect(metrics.successful).toBe(1);
+      expect(metrics.failed).toBe(0);
+    });
+
+    it('should track failed verifications', async () => {
+      snarkjsProofService.isAvailable.mockReturnValue(false);
+      proofGenService.verifyMockProof.mockReturnValue(false);
+
+      await service.verifyWithInputs(mockProof, mockPublicInputs);
+
+      const metrics = service.getMetrics();
+      expect(metrics.total).toBe(1);
+      expect(metrics.successful).toBe(0);
+      expect(metrics.failed).toBe(1);
+    });
+
+    it('should track mock verifications separately', async () => {
+      snarkjsProofService.isAvailable.mockReturnValue(false);
+      proofGenService.verifyMockProof.mockReturnValue(true);
+
+      await service.verifyWithInputs(mockProof, mockPublicInputs);
+
+      const metrics = service.getMetrics();
+      expect(metrics.mock).toBe(1);
+      expect(metrics.usingRealVerification).toBe(false);
+    });
+
+    it('should calculate success rate correctly', async () => {
+      snarkjsProofService.isAvailable.mockReturnValue(true);
+      snarkjsProofService.verifyProof
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+
+      await service.verifyWithInputs(mockProof, mockPublicInputs);
+      await service.verifyWithInputs(mockProof, mockPublicInputs);
+      await service.verifyWithInputs(mockProof, mockPublicInputs);
+
+      const metrics = service.getMetrics();
+      expect(metrics.total).toBe(3);
+      expect(metrics.successful).toBe(2);
+      expect(metrics.failed).toBe(1);
+      expect(metrics.successRate).toBeCloseTo(66.67, 1);
+    });
+
+    it('should indicate real verification status', async () => {
+      snarkjsProofService.isAvailable.mockReturnValue(true);
+      snarkjsProofService.verifyProof.mockResolvedValue(true);
+
+      await service.verifyWithInputs(mockProof, mockPublicInputs);
+
+      const metrics = service.getMetrics();
+      expect(metrics.mock).toBe(0);
+      expect(metrics.usingRealVerification).toBe(true);
+    });
+  });
 });

@@ -13,12 +13,41 @@ import { SnarkjsProofService } from './snarkjs-proof.service';
 @Injectable()
 export class ProofVerifierService {
   private readonly logger = new Logger(ProofVerifierService.name);
+  private verificationCount = 0;
+  private successfulVerifications = 0;
+  private failedVerifications = 0;
+  private mockVerifications = 0;
 
   constructor(
     private readonly blockchainService: BlockchainService,
     private readonly proofGenService: ProofGenService,
     private readonly snarkjsProofService: SnarkjsProofService,
   ) {}
+
+  /**
+   * Check if the service is ready for production use
+   * @returns true if real cryptographic verification is available
+   */
+  isProductionReady(): boolean {
+    return this.snarkjsProofService.isAvailable();
+  }
+
+  /**
+   * Get verification metrics for monitoring
+   */
+  getMetrics() {
+    return {
+      total: this.verificationCount,
+      successful: this.successfulVerifications,
+      failed: this.failedVerifications,
+      mock: this.mockVerifications,
+      successRate:
+        this.verificationCount > 0
+          ? (this.successfulVerifications / this.verificationCount) * 100
+          : 0,
+      usingRealVerification: this.snarkjsProofService.isAvailable(),
+    };
+  }
 
   /**
    * Verify a ZK-SNARK proof using Groth16
@@ -78,6 +107,19 @@ export class ProofVerifierService {
       idCommitment: string;
     },
   ): Promise<boolean> {
+    // CRITICAL: Production mode requires real cryptographic verification
+    if (
+      process.env.NODE_ENV === 'production' &&
+      !this.snarkjsProofService.isAvailable()
+    ) {
+      this.logger.error(
+        'CRITICAL: Production mode requires real proof verification. Circuit artifacts not loaded.',
+      );
+      throw new Error(
+        'Proof verification not available in production mode. Configure circuit artifacts.',
+      );
+    }
+
     this.logger.debug('Verifying proof with public inputs', {
       nullifier: publicInputs.nullifier.slice(0, 10) + '...',
       maxCost: publicInputs.maxCost,
@@ -126,6 +168,8 @@ export class ProofVerifierService {
 
     // 3. Try real snarkjs verification if available, otherwise fall back to mock
     try {
+      this.verificationCount++;
+
       const proofData = JSON.parse(proof);
 
       // Check if snarkjs proof system is available
@@ -145,14 +189,17 @@ export class ProofVerifierService {
         );
 
         if (isValid) {
+          this.successfulVerifications++;
           this.logger.log('Proof verified successfully (cryptographic)');
         } else {
+          this.failedVerifications++;
           this.logger.warn('Proof verification failed (cryptographic)');
         }
 
         return isValid;
       } else {
         // Fall back to mock verification
+        this.mockVerifications++;
         this.logger.debug(
           'Snarkjs not available, using mock verification (dev mode)',
         );
@@ -162,14 +209,17 @@ export class ProofVerifierService {
         );
 
         if (isValid) {
+          this.successfulVerifications++;
           this.logger.log('Proof verified successfully (mock)');
         } else {
+          this.failedVerifications++;
           this.logger.warn('Proof verification failed (mock)');
         }
 
         return isValid;
       }
     } catch (error) {
+      this.failedVerifications++;
       this.logger.error('Failed to verify proof', error);
       return false;
     }
