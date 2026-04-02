@@ -12,6 +12,7 @@ import { validateEnvironment } from './config/env.validation';
 import { AuthModule } from './auth/auth.module';
 import { ZkApiModule } from './zk-api/zk-api.module';
 import { ThrottlerMetadataGuard } from './guards/throttler-metadata-guard';
+import { RequestFingerprintThrottler } from './guards/request-fingerprint-throttler.guard';
 import { TimingProtectionInterceptor } from './interceptors/timing-protection.interceptor';
 import { MetadataSanitizerInterceptor } from './interceptors/metadata-sanitizer.interceptor';
 import { RequestSanitizerMiddleware } from './middleware/request-sanitizer.middleware';
@@ -23,11 +24,13 @@ import { RequestSanitizerMiddleware } from './middleware/request-sanitizer.middl
       isGlobal: true,
       validate: validateEnvironment,
     }),
-    // Rate limiting to prevent DoS attacks (with metadata protection)
+    // Hybrid rate limiting:
+    // 1. Request fingerprint-based (privacy-preserving)
+    // 2. Per-nullifier (in ZkApiService via NullifierStoreService)
     ThrottlerModule.forRoot([
       {
         ttl: 60000, // 60 seconds
-        limit: 10, // 10 requests per minute per IP
+        limit: 10, // 10 requests per minute per request fingerprint
       },
     ]),
     AuthModule,
@@ -38,11 +41,16 @@ import { RequestSanitizerMiddleware } from './middleware/request-sanitizer.middl
     AppService,
     SecretsService,
     TeePlatformService,
-    // Global metadata leakage protection
+    // Hybrid rate limiting with privacy protection
     {
       provide: APP_GUARD,
-      useClass: ThrottlerMetadataGuard,
+      useClass: RequestFingerprintThrottler, // Request content-based rate limiting
     },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerMetadataGuard, // Metadata protection for rate limiting
+    },
+    // Global metadata leakage protection
     {
       provide: APP_INTERCEPTOR,
       useClass: TimingProtectionInterceptor,

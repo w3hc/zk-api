@@ -53,6 +53,10 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(NullifierStoreService.name);
   private db: Database.Database;
   private dbPath: string;
+  // In-memory rate limiting per nullifier
+  private readonly nullifierAttempts = new Map<string, number[]>();
+  private readonly RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+  private readonly RATE_LIMIT_MAX_ATTEMPTS = 3; // Max 3 attempts per minute per nullifier
 
   constructor() {
     // Use environment variable or default to data directory
@@ -338,5 +342,75 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
     );
     const row = stmt.get() as CountRow | undefined;
     return row?.count ?? 0;
+  }
+
+  /**
+   * Check if nullifier has exceeded rate limit
+   * Returns true if within limit, false if exceeded
+   */
+  checkRateLimit(nullifier: string): boolean {
+    const now = Date.now();
+
+    // Get recent attempts for this nullifier
+    const attempts = this.nullifierAttempts.get(nullifier) || [];
+    const recentAttempts = attempts.filter(
+      (timestamp) => now - timestamp < this.RATE_LIMIT_WINDOW_MS,
+    );
+
+    // Check if exceeded limit
+    if (recentAttempts.length >= this.RATE_LIMIT_MAX_ATTEMPTS) {
+      this.logger.warn(
+        `Rate limit exceeded for nullifier ${nullifier.slice(0, 10)}... (${recentAttempts.length} attempts in last minute)`,
+      );
+      return false;
+    }
+
+    // Record this attempt
+    recentAttempts.push(now);
+    this.nullifierAttempts.set(nullifier, recentAttempts);
+
+    // Clean up old entries periodically (when map gets large)
+    if (this.nullifierAttempts.size > 10000) {
+      this.cleanupRateLimitMap();
+    }
+
+    return true;
+  }
+
+  /**
+   * Clean up expired entries from rate limit map
+   */
+  private cleanupRateLimitMap(): void {
+    const now = Date.now();
+    let cleaned = 0;
+
+    for (const [nullifier, attempts] of this.nullifierAttempts.entries()) {
+      const recentAttempts = attempts.filter(
+        (timestamp) => now - timestamp < this.RATE_LIMIT_WINDOW_MS,
+      );
+
+      if (recentAttempts.length === 0) {
+        this.nullifierAttempts.delete(nullifier);
+        cleaned++;
+      } else if (recentAttempts.length < attempts.length) {
+        this.nullifierAttempts.set(nullifier, recentAttempts);
+      }
+    }
+
+    if (cleaned > 0) {
+      this.logger.debug(`Cleaned up ${cleaned} expired rate limit entries`);
+    }
+  }
+
+  /**
+   * Get remaining attempts for nullifier (for debugging/testing)
+   */
+  getRemainingAttempts(nullifier: string): number {
+    const now = Date.now();
+    const attempts = this.nullifierAttempts.get(nullifier) || [];
+    const recentAttempts = attempts.filter(
+      (timestamp) => now - timestamp < this.RATE_LIMIT_WINDOW_MS,
+    );
+    return Math.max(0, this.RATE_LIMIT_MAX_ATTEMPTS - recentAttempts.length);
   }
 }

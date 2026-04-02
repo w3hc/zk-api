@@ -98,7 +98,8 @@ Submit anonymous external API request with Zero-Knowledge proof of solvency (exa
 - `200 OK` - Request processed successfully
 - `400 Bad Request` - Invalid request parameters
 - `401 Unauthorized` - Invalid ZK proof
-- `403 Forbidden` - Nullifier already used or double-spend detected
+- `403 Forbidden` - Nullifier already used, double-spend detected, or rate limit exceeded
+- `429 Too Many Requests` - Rate limit exceeded (generic message for privacy)
 - `500 Internal Server Error` - Server error
 
 **Example:**
@@ -153,6 +154,11 @@ curl -k -X POST https://localhost:3000/zk-api/request \
    - Correct RLN signal generation (nullifier = Hash(a), y = k + a*x)
 
 3. **Cost Protection**: Set `maxCost` to protect against unexpected price changes
+
+4. **Rate Limiting**: Three layers of protection (see [Metadata Protection](METADATA_PROTECTION.md)):
+   - **Request fingerprint**: 10 requests/minute per unique request content (privacy-preserving)
+   - **Per-nullifier**: 3 requests/minute per user identity
+   - **Metadata hiding**: Rate limit details concealed to prevent tracking
 
 **See Also:** [ZK System Guide](ZK.md), [Testing Guide](TESTING_GUIDE.md)
 
@@ -351,8 +357,9 @@ All endpoints return consistent error responses:
 |------|---------|---------------|
 | 400 | Bad Request | Invalid parameters, missing fields |
 | 401 | Unauthorized | Invalid ZK proof |
-| 403 | Forbidden | Nullifier reused, double-spend detected |
+| 403 | Forbidden | Nullifier reused, double-spend detected, per-nullifier rate limit |
 | 404 | Not Found | Resource does not exist |
+| 429 | Too Many Requests | Request fingerprint rate limit exceeded |
 | 500 | Internal Server Error | Unexpected server error |
 | 503 | Service Unavailable | Blockchain or external API unavailable |
 

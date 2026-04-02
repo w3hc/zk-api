@@ -58,7 +58,14 @@ export class ZkApiService {
   async handleRequest(req: ZkApiRequestDto): Promise<ZkApiResponseDto> {
     const model = (req.model || 'claude-sonnet-4.6') as ClaudeModel;
 
-    // 1. Check nullifier for double-spend
+    // 1. Check per-nullifier rate limit (before expensive operations)
+    if (!this.nullifierStore.checkRateLimit(req.nullifier)) {
+      throw new ForbiddenException(
+        'Rate limit exceeded for this nullifier. Maximum 3 requests per minute.',
+      );
+    }
+
+    // 2. Check nullifier for double-spend
     const existingSignal = this.nullifierStore.get(req.nullifier);
     if (existingSignal) {
       if (existingSignal.x !== req.signal.x) {
@@ -82,26 +89,26 @@ export class ZkApiService {
       throw new ForbiddenException('Nullifier already used');
     }
 
-    // 2. Verify ZK proof
+    // 3. Verify ZK proof
     const valid = this.proofVerifier.verify(req.proof);
     if (!valid) {
       throw new UnauthorizedException('Invalid ZK proof');
     }
 
-    // 3. Store nullifier to prevent reuse
+    // 4. Store nullifier to prevent reuse
     this.nullifierStore.set(req.nullifier, req.signal);
 
-    // 4. Execute API request (Claude example)
+    // 5. Execute API request (Claude example)
     const response = await this.executeClaudeRequest(req.payload, model);
 
-    // 5. Calculate actual cost in ETH
+    // 6. Calculate actual cost in ETH
     const actualCost = await this.calculateCostInETH(
       response.usage.inputTokens,
       response.usage.outputTokens,
       model,
     );
 
-    // 6. Generate refund ticket
+    // 7. Generate refund ticket
     const refundValue = BigInt(req.maxCost) - actualCost;
     const refundTicket = await this.refundSigner.signRefund({
       nullifier: req.nullifier,
