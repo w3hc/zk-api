@@ -94,21 +94,21 @@ API available at `https://localhost:3000`
 
 ## Deploy 
 
-**Basic Ubuntu VPS** (no TEE):
+### Basic Ubuntu VPS** (no TEE)
 ```bash
 NODE_ENV=production
 OPERATOR_PRIVATE_KEY=0x...  # EdDSA key for refund signatures
 pnpm start:prod
 ```
 
-**Phala TEE**:
+### Phala TEE**
 ```bash
 NODE_ENV=production
 # Phala injects encrypted secrets automatically
 ```
 See [PHALA_CONFIG.md](docs/PHALA_CONFIG.md)
 
-**Cloud with KMS** (AWS/GCP/Azure):
+### Cloud with KMS (AWS/GCP/Azure)
 ```bash
 NODE_ENV=production
 KMS_URL=https://kms.example.com/secrets

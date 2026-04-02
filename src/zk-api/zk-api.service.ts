@@ -33,6 +33,8 @@ type ClaudeModel = keyof typeof CLAUDE_PRICING;
 export class ZkApiService {
   private readonly logger = new Logger(ZkApiService.name);
   private readonly anthropic: Anthropic;
+  private poseidon: any;
+  private initPromise: Promise<void> | null = null;
 
   constructor(
     private readonly configService: ConfigService,
@@ -51,6 +53,37 @@ export class ZkApiService {
       );
     }
     this.anthropic = new Anthropic({ apiKey: apiKey || 'mock-key' });
+  }
+
+  /**
+   * Initialize Poseidon hash (lazy initialization)
+   */
+  private async initialize() {
+    if (this.poseidon) {
+      return;
+    }
+
+    if (this.initPromise) {
+      return this.initPromise;
+    }
+
+    this.initPromise = (async () => {
+      try {
+        // Use require instead of dynamic import to avoid ESM issues
+        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+        const circomlibjs = require('circomlibjs');
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+        this.poseidon = await circomlibjs.buildPoseidon();
+        this.logger.debug(
+          'Poseidon hash initialized for secret key extraction',
+        );
+      } catch (error) {
+        this.logger.error('Failed to initialize Poseidon hash', error);
+        throw error;
+      }
+    })();
+
+    return this.initPromise;
   }
 
   /**
@@ -76,8 +109,11 @@ export class ZkApiService {
           `Double-spend detected for nullifier ${req.nullifier}`,
         );
 
-        // Extract secret key from two signals
-        const secretKey = this.extractSecretKey(existingSignal, req.signal);
+        // Extract secret key from two signals using field arithmetic
+        const secretKey = await this.extractSecretKey(
+          existingSignal,
+          req.signal,
+        );
 
         // Submit slashing transaction to smart contract
         this.logger.warn(`Secret key extracted: ${secretKey.slice(0, 10)}...`);
@@ -152,14 +188,19 @@ export class ZkApiService {
   }
 
   /**
-   * Extract secret key from two RLN signals
+   * Extract secret key from two RLN signals using field arithmetic
    * Given: y1 = k + a*x1 and y2 = k + a*x2
-   * Solve: k = (y1*x2 - y2*x1) / (x2 - x1)
+   * Solve: k = (x2*y1 - x1*y2) / (x2 - x1) mod p
    */
-  private extractSecretKey(
+  private async extractSecretKey(
     signal1: { x: string; y: string },
     signal2: { x: string; y: string },
-  ): string {
+  ): Promise<string> {
+    await this.initialize();
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const F = this.poseidon.F;
+
     const x1 = BigInt(signal1.x);
     const y1 = BigInt(signal1.y);
     const x2 = BigInt(signal2.x);
@@ -170,11 +211,16 @@ export class ZkApiService {
       throw new Error('Invalid signals: x values are identical');
     }
 
-    const numerator = y1 * x2 - y2 * x1;
-    const denominator = x2 - x1;
-    const k = numerator / denominator;
+    // Field arithmetic: k = (x2*y1 - x1*y2) / (x2 - x1) mod p
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const numerator = F.sub(F.mul(F.e(x2), F.e(y1)), F.mul(F.e(x1), F.e(y2)));
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const denominator = F.sub(F.e(x2), F.e(x1));
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    const k = F.div(numerator, denominator);
 
-    return '0x' + k.toString(16).padStart(64, '0');
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    return '0x' + F.toObject(k).toString(16).padStart(64, '0');
   }
 
   /**
