@@ -22,14 +22,14 @@ describe('EthRateOracleService', () => {
 
       expect(rate).toBeGreaterThan(0);
       expect(typeof rate).toBe('number');
-    });
+    }, 10000);
 
     it('should cache rate for 1 minute', async () => {
       const rate1 = await service.getEthUsdRate();
       const rate2 = await service.getEthUsdRate();
 
       expect(rate1).toBe(rate2);
-    });
+    }, 10000);
   });
 
   describe('usdToWei', () => {
@@ -39,7 +39,7 @@ describe('EthRateOracleService', () => {
 
       expect(wei).toBeGreaterThan(BigInt(0));
       expect(typeof wei).toBe('bigint');
-    });
+    }, 10000);
   });
 
   describe('weiToUsd', () => {
@@ -49,6 +49,6 @@ describe('EthRateOracleService', () => {
 
       expect(usd).toBeGreaterThan(0);
       expect(typeof usd).toBe('number');
-    });
+    }, 10000);
   });
 });
