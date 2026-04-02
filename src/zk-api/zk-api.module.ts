@@ -9,6 +9,7 @@ import { BlockchainService } from './blockchain.service';
 import { ProofGenService } from './proof-gen.service';
 import { MerkleTreeService } from './merkle-tree.service';
 import { SnarkjsProofService } from './snarkjs-proof.service';
+import { SlashingService } from './slashing.service';
 import { SecretsService } from '../config/secrets.service';
 import { TeePlatformService } from '../attestation/tee-platform.service';
 
@@ -24,6 +25,7 @@ import { TeePlatformService } from '../attestation/tee-platform.service';
     RefundSignerService,
     BlockchainService,
     MerkleTreeService,
+    SlashingService,
     SecretsService,
     TeePlatformService,
   ],
