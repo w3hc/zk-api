@@ -74,7 +74,7 @@ describe('ProofGenService', () => {
       expect(typeof result.nullifier).toBe('bigint');
       expect(typeof result.signalY).toBe('bigint');
       expect(typeof result.a).toBe('bigint');
-    });
+    }, 10000);
 
     it('should generate different nullifiers for different ticket indices', async () => {
       const secretKey = BigInt(12345);

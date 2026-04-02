@@ -369,6 +369,16 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         return identityCommitments.length;
     }
 
+    /**
+     * @notice Check if a nullifier has been used (either slashed or redeemed)
+     * @param _nullifier The nullifier to check
+     * @return bool True if the nullifier has been used/slashed/redeemed
+     * @dev Used for double-spend prevention and refund redemption checks
+     */
+    function isNullifierUsed(bytes32 _nullifier) external view returns (bool) {
+        return slashedNullifiers[_nullifier] || redeemedRefunds[_nullifier];
+    }
+
     // ============ Admin Functions ============
 
     /**

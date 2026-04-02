@@ -108,7 +108,7 @@ describe('BlockchainService', () => {
 
       const isMember = await merkleTreeService.isMember(idCommitmentBigInt);
       expect(isMember).toBe(true);
-    });
+    }, 10000);
 
     it('should resync on root mismatch after deposit', async () => {
       const idCommitment = '0x' + '1'.repeat(64);

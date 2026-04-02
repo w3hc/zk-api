@@ -74,7 +74,7 @@ if [ "$IS_REDEEMED" = "true" ]; then
 elif [ "$IS_REDEEMED" = "false" ]; then
   echo "✓ Nullifier is not yet redeemed"
 else
-  echo "⚠️  Could not check nullifier status (might be expected if method doesn't exist)"
+  echo "⚠️  Could not check on-chain status (contract may not have isNullifierUsed)"
 fi
 echo ""
 

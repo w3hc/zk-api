@@ -211,6 +211,9 @@ function slashDoubleSpend(
 
 // Slash policy violators (server-only)
 function slashPolicyViolation(bytes32 nullifier, bytes32 idCommitment) external onlyOwner
+
+// Check if nullifier has been used (double-spend or refund redemption)
+function isNullifierUsed(bytes32 nullifier) external view returns (bool)
 ```
 
 **Dual Staking**:
