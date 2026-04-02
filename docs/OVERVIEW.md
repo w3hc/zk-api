@@ -320,11 +320,11 @@ The server signs refund tickets with EdDSA (verifiable in ZK circuits):
 
 - [ ] Complete trusted setup ceremony (Powers of Tau)
 - [x] Replace in-memory nullifier store with persistent database (SQLite)
+- [x] Rate limiting per nullifier (hybrid approach: fingerprint + per-nullifier)
 - [ ] Implement HSM/KMS for EdDSA signing key
 - [ ] Add event listener for on-chain Deposit events
 - [ ] Deploy contract to mainnet
 - [ ] Security audit (contract + circuit + backend)
-- [ ] Rate limiting per IP/nullifier
 - [ ] Gas optimization
 - [ ] MEV protection for slashing transactions
 
@@ -333,6 +333,7 @@ The server signs refund tickets with EdDSA (verifiable in ZK circuits):
 - [SQLite Database Implementation](./SQLITE3.md) - Storage architecture and privacy design
 - [ZK Circuits Guide](./ZK.md) - Zero-knowledge proof circuits
 - [API Reference](./API_REFERENCE.md) - Endpoint documentation
+- [Metadata Protection](./METADATA_PROTECTION.md) - Privacy and rate limiting implementation
 - [Testing Guide](./TESTING_GUIDE.md) - Test procedures
 
 ## References
