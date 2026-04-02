@@ -28,7 +28,33 @@ async function bootstrap() {
   });
 
   // Security headers - protects against common web vulnerabilities
-  app.use(helmet());
+  // Enhanced configuration to minimize metadata leakage
+  app.use(
+    helmet({
+      // Hide powered-by header
+      hidePoweredBy: true,
+      // Strict content type to prevent MIME sniffing
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"], // For Swagger UI
+          imgSrc: ["'self'", 'data:'],
+        },
+      },
+      // Remove server fingerprinting headers
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true,
+      },
+      // Additional protections
+      frameguard: { action: 'deny' },
+      xssFilter: true,
+      ieNoOpen: true,
+      noSniff: true,
+    }),
+  );
 
   // CORS configuration - restrict to trusted origins in production
   app.enableCors({

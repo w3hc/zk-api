@@ -177,13 +177,15 @@ describe('Application (e2e)', () => {
   });
 
   describe('Response Time (e2e)', () => {
-    it('health endpoint should respond quickly', async () => {
+    it('health endpoint should have consistent response time due to timing protection', async () => {
       const start = Date.now();
       await request(app.getHttpServer()).get('/health').expect(200);
       const duration = Date.now() - start;
 
-      // Health check should respond in less than 100ms
-      expect(duration).toBeLessThan(100);
+      // With timing protection, all responses take at least 100ms + jitter (0-20ms)
+      // This prevents timing-based side-channel attacks
+      expect(duration).toBeGreaterThanOrEqual(100);
+      expect(duration).toBeLessThan(150); // 100ms + 20ms jitter + some overhead
     });
 
     it('attestation endpoint should respond in reasonable time', async () => {
