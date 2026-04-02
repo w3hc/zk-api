@@ -9,6 +9,7 @@ import { SnarkjsProofService } from './snarkjs-proof.service';
 import { EthRateOracleService } from './eth-rate-oracle.service';
 import { RefundSignerService } from './refund-signer.service';
 import { BlockchainService } from './blockchain.service';
+import { SlashingService } from './slashing.service';
 import { ZkApiRequestDto } from './dto/api-request.dto';
 import { SecretsService } from '../config/secrets.service';
 import { TeePlatformService } from '../attestation/tee-platform.service';
@@ -62,6 +63,15 @@ describe('ZkApiService', () => {
           useValue: {
             getMerkleRoot: jest.fn().mockResolvedValue('0x1234'),
             isAvailable: jest.fn().mockReturnValue(true),
+          },
+        },
+        {
+          provide: SlashingService,
+          useValue: {
+            isEnabled: jest.fn().mockReturnValue(false),
+            slashDoubleSpend: jest.fn().mockResolvedValue(null),
+            getContractAddress: jest.fn().mockReturnValue(null),
+            getSlasherAddress: jest.fn().mockReturnValue(null),
           },
         },
         {

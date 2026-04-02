@@ -12,6 +12,7 @@ import { NullifierStoreService } from './nullifier-store.service';
 import { ProofVerifierService } from './proof-verifier.service';
 import { EthRateOracleService } from './eth-rate-oracle.service';
 import { RefundSignerService } from './refund-signer.service';
+import { SlashingService } from './slashing.service';
 
 // Example: Claude API Pricing (USD per million tokens)
 // This can be configured for any API service with similar pricing models
@@ -39,6 +40,7 @@ export class ZkApiService {
     private readonly proofVerifier: ProofVerifierService,
     private readonly ethRateOracle: EthRateOracleService,
     private readonly refundSigner: RefundSignerService,
+    private readonly slashingService: SlashingService,
   ) {
     // Example: Initialize Claude API client
     // Replace with your own API service client initialization
@@ -77,8 +79,29 @@ export class ZkApiService {
         // Extract secret key from two signals
         const secretKey = this.extractSecretKey(existingSignal, req.signal);
 
-        // TODO: Submit slashing transaction to smart contract
+        // Submit slashing transaction to smart contract
         this.logger.warn(`Secret key extracted: ${secretKey.slice(0, 10)}...`);
+
+        if (this.slashingService.isEnabled()) {
+          try {
+            const txHash = await this.slashingService.slashDoubleSpend(
+              secretKey,
+              req.nullifier,
+              existingSignal,
+              req.signal,
+            );
+            this.logger.log(
+              `Slashing transaction submitted: ${txHash || 'disabled'}`,
+            );
+          } catch (error) {
+            this.logger.error('Failed to submit slashing transaction', error);
+            // Continue to reject the request even if slashing fails
+          }
+        } else {
+          this.logger.warn(
+            'Slashing disabled - configure ANVIL_RPC_URL, ANVIL_PRIVATE_KEY, and ZK_CONTRACT_ADDRESS',
+          );
+        }
 
         throw new ForbiddenException(
           'Double-spend detected. Your secret key has been extracted and you will be slashed.',
