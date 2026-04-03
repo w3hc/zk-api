@@ -80,6 +80,10 @@ describe('EthRateOracleService', () => {
 
   describe('fallback mechanisms', () => {
     it('should fallback to Chainlink when Kraken fails', async () => {
+      // Suppress expected error logs
+
+      jest.spyOn(service['logger'], 'error').mockImplementation();
+
       // Mock Kraken to fail
       jest
         .spyOn(global, 'fetch')
@@ -128,6 +132,10 @@ describe('EthRateOracleService', () => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       (service as any).cache = null;
 
+      // Suppress expected error logs
+
+      jest.spyOn(service['logger'], 'error').mockImplementation();
+
       // Mock Kraken to fail this time
       jest
         .spyOn(global, 'fetch')
@@ -153,6 +161,10 @@ describe('EthRateOracleService', () => {
       // Clear memory cache
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       (service as any).cache = null;
+
+      // Suppress expected error logs
+
+      jest.spyOn(service['logger'], 'error').mockImplementation();
 
       // Mock Kraken to fail
       jest
