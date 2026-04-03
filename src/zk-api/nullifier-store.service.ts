@@ -57,6 +57,7 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
   private readonly nullifierAttempts = new Map<string, number[]>();
   private readonly RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
   private readonly RATE_LIMIT_MAX_ATTEMPTS = 3; // Max 3 attempts per minute per nullifier
+  private cleanupInterval: NodeJS.Timeout;
 
   constructor() {
     // Use environment variable or default to data directory
@@ -107,9 +108,20 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
 
     // Migration: Remove payload column if it exists (for privacy)
     this.migrateRemovePayloadColumn();
+
+    // Clean up rate limit map every 5 minutes
+    this.cleanupInterval = setInterval(
+      () => {
+        this.cleanupRateLimitMap();
+      },
+      5 * 60 * 1000,
+    );
   }
 
   onModuleDestroy() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+    }
     if (this.db) {
       this.db.close();
       this.logger.log('SQLite database connection closed');
@@ -370,7 +382,7 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
     this.nullifierAttempts.set(nullifier, recentAttempts);
 
     // Clean up old entries periodically (when map gets large)
-    if (this.nullifierAttempts.size > 10000) {
+    if (this.nullifierAttempts.size > 1000) {
       this.cleanupRateLimitMap();
     }
 
