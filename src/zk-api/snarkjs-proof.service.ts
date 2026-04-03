@@ -24,14 +24,14 @@ export class SnarkjsProofService {
   private isSetup = false;
 
   constructor() {
-    // Paths to circuit artifacts
+    // Paths to production circuit artifacts
     this.wasmPath = join(
       process.cwd(),
-      'circuits/build/api_credit_proof_test_js/api_credit_proof_test.wasm',
+      'circuits/build/api_credit_proof_js/api_credit_proof.wasm',
     );
     this.zkeyPath = join(
       process.cwd(),
-      'circuits/build/api_credit_proof_test_final.zkey',
+      'circuits/build/api_credit_proof_final.zkey',
     );
   }
 
