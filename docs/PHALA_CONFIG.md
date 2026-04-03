@@ -89,6 +89,14 @@ Create a local file with your production secrets (used during deployment):
 ```bash
 NODE_ENV=production
 KMS_URL=http://localhost:8001/prpc/PhactoryAPI.GetRuntimeInfo
+
+# Blockchain Configuration
+ZK_CONTRACT_ADDRESS=<your-contract-address>
+# Comma-separated list of Ethereum mainnet RPC URLs (API will randomly pick one)
+ETHEREUM_RPC_URLS=https://eth.drpc.org,https://rpc.mevblocker.io/fullprivacy,https://rpc.mevblocker.io/noreverts,https://rpc.mevblocker.io/fast,https://rpc.mevblocker.io,https://rpc.flashbots.net/fast,https://rpc.flashbots.net,https://mainnet.gateway.tenderly.co,https://ethereum-rpc.publicnode.com
+ANVIL_PRIVATE_KEY=<your-private-key-for-slashing-txs>
+
+# Optional ML-KEM keys
 ADMIN_MLKEM_PUBLIC_KEY=<your-public-key>
 ADMIN_MLKEM_PRIVATE_KEY=<your-private-key>
 ```

@@ -34,6 +34,14 @@ KMS_URL=https://your-kms.example.com/release
 # Example app secret — replace with whatever your API needs
 MY_API_KEY=<your-api-key>
 
+# Blockchain RPC Configuration
+# For local development with Anvil:
+ZK_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
+ANVIL_RPC_URL=http://127.0.0.1:8545
+
+# For production Ethereum mainnet (comma-separated list - API will randomly pick one):
+# ETHEREUM_RPC_URLS=https://eth.drpc.org,https://rpc.mevblocker.io/fullprivacy,https://rpc.flashbots.net,https://ethereum-rpc.publicnode.com
+
 # Optional: ML-KEM-1024 Admin Keypair (for future ML-KEM endpoints)
 # ADMIN_MLKEM_PUBLIC_KEY=<your-public-key>
 # ADMIN_MLKEM_PRIVATE_KEY=<your-private-key>
