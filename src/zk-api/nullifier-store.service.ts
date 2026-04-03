@@ -174,11 +174,26 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
           COMMIT;
         `);
 
-        this.logger.log('Migration complete: payload column removed');
+        // Verify migration succeeded
+        const columnsAfter = this.db
+          .prepare("PRAGMA table_info('nullifiers')")
+          .all() as Array<{ name: string }>;
+        const stillHasPayload = columnsAfter.some(
+          (col) => col.name === 'payload',
+        );
+
+        if (stillHasPayload) {
+          throw new Error('Migration failed: payload column still exists');
+        }
+
+        this.logger.log('Migration completed successfully');
       }
     } catch (error) {
       this.logger.error('Migration failed:', error);
-      // Continue anyway - table might already be in new format
+      // In production, throw the error to prevent service from starting with corrupted database
+      if (process.env.NODE_ENV === 'production') {
+        throw error;
+      }
     }
   }
 
