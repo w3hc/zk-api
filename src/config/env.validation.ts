@@ -33,6 +33,10 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  ETHEREUM_RPC_URLS?: string; // Comma-separated list of Ethereum mainnet RPC URLs
+
+  @IsOptional()
+  @IsString()
   ANVIL_PRIVATE_KEY?: string;
 }
 

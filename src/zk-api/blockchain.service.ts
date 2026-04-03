@@ -20,8 +20,30 @@ export class BlockchainService implements OnModuleInit {
     private readonly merkleTree: MerkleTreeService,
   ) {}
 
+  /**
+   * Get RPC URL from environment configuration.
+   * In production, randomly selects from ETHEREUM_RPC_URLS if available.
+   * Falls back to ANVIL_RPC_URL for local development.
+   */
+  private getRpcUrl(): string | undefined {
+    const ethereumRpcUrls = this.configService.get<string>('ETHEREUM_RPC_URLS');
+
+    if (ethereumRpcUrls) {
+      const urls = ethereumRpcUrls
+        .split(',')
+        .map((url) => url.trim())
+        .filter((url) => url.length > 0);
+      if (urls.length > 0) {
+        const selectedUrl = urls[Math.floor(Math.random() * urls.length)];
+        return selectedUrl;
+      }
+    }
+
+    return this.configService.get<string>('ANVIL_RPC_URL');
+  }
+
   async onModuleInit() {
-    const rpcUrl = this.configService.get<string>('ANVIL_RPC_URL');
+    const rpcUrl = this.getRpcUrl();
     const contractAddress = this.configService.get<string>(
       'ZK_CONTRACT_ADDRESS',
     );
@@ -35,6 +57,7 @@ export class BlockchainService implements OnModuleInit {
     }
 
     try {
+      this.logger.log(`Connecting to RPC: ${rpcUrl}`);
       this.provider = new ethers.JsonRpcProvider(rpcUrl);
       this.contract = new ethers.Contract(
         contractAddress,
