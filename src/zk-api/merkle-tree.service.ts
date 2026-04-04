@@ -6,7 +6,14 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/require-await */
 
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { dirname } from 'path';
 
 /**
  * Sparse Merkle Tree implementation for identity commitments
@@ -14,7 +21,7 @@ import { Injectable, Logger } from '@nestjs/common';
  * Tree depth: 20 (supports 2^20 = ~1M users)
  */
 @Injectable()
-export class MerkleTreeService {
+export class MerkleTreeService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MerkleTreeService.name);
   private poseidon: any;
   private initPromise: Promise<void> | null = null;
@@ -22,6 +29,12 @@ export class MerkleTreeService {
   // Tree configuration
   private readonly TREE_DEPTH = 20;
   private readonly ZERO_VALUE = BigInt(0);
+
+  // Persistence configuration
+  private readonly persistPath =
+    process.env.MERKLE_TREE_PERSIST_PATH || './data/merkle-tree.json';
+  private readonly persistIntervalMs = 5 * 60 * 1000; // 5 minutes
+  private persistInterval: NodeJS.Timeout | null = null;
 
   // Tree storage: level -> index -> hash
   private tree: Map<number, Map<number, bigint>> = new Map();
@@ -387,5 +400,90 @@ export class MerkleTreeService {
     }
 
     this.logger.debug('Tree cleared');
+  }
+
+  /**
+   * Load tree state from disk
+   */
+  private async loadFromDisk(): Promise<boolean> {
+    if (!existsSync(this.persistPath)) {
+      this.logger.debug(`No persisted tree found at ${this.persistPath}`);
+      return false;
+    }
+
+    try {
+      const data = readFileSync(this.persistPath, 'utf-8');
+      const state = JSON.parse(data);
+      await this.importState(state);
+      this.logger.log(
+        `Loaded Merkle tree from disk: ${this.leafCount} leaves from ${this.persistPath}`,
+      );
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to load tree from ${this.persistPath}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Persist tree state to disk
+   */
+  private async persistToDisk(): Promise<void> {
+    try {
+      const state = await this.exportState();
+      const dir = dirname(this.persistPath);
+
+      // Ensure directory exists
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+      }
+
+      writeFileSync(this.persistPath, JSON.stringify(state, null, 2));
+      this.logger.debug(
+        `Persisted Merkle tree to disk: ${this.leafCount} leaves`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to persist tree to ${this.persistPath}:`,
+        error,
+      );
+    }
+  }
+
+  /**
+   * Module initialization hook
+   * Loads persisted tree and sets up periodic persistence
+   */
+  async onModuleInit() {
+    await this.initialize();
+
+    // Try to load from disk
+    const loaded = await this.loadFromDisk();
+    if (!loaded) {
+      this.logger.log('Starting with empty Merkle tree');
+    }
+
+    // Setup periodic persistence
+    this.persistInterval = setInterval(() => {
+      void this.persistToDisk();
+    }, this.persistIntervalMs);
+
+    this.logger.log(
+      `Periodic persistence enabled (interval: ${this.persistIntervalMs / 1000}s)`,
+    );
+  }
+
+  /**
+   * Cleanup on module destroy
+   */
+  async onModuleDestroy() {
+    if (this.persistInterval) {
+      clearInterval(this.persistInterval);
+      this.persistInterval = null;
+    }
+
+    // Final persist before shutdown
+    await this.persistToDisk();
+    this.logger.log('Merkle tree persisted before shutdown');
   }
 }
