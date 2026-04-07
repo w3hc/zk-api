@@ -71,16 +71,17 @@ The operator private key is never stored on disk. See [TEE_SETUP.md](docs/TEE_SE
 
 ## Docs
 
+- [QUICK_START.md](docs/QUICK_START.md) - Add a new provider in 10 steps (OpenAI, Stripe, any API)
+- [LOCAL_SETUP.md](docs/LOCAL_SETUP.md) - Local development setup
 - [API_REFERENCE.md](docs/API_REFERENCE.md) - API endpoints and request formats
 - [ZK.md](docs/ZK.md) - Zero-knowledge circuits and proofs
 - [OVERVIEW.md](docs/OVERVIEW.md) - System architecture
 - [TESTING_GUIDE.md](docs/TESTING_GUIDE.md) - Testing procedures
-- [PROVIDERS.md](docs/PROVIDERS.md) - Provider abstraction, pricing oracle, and implementation guide
+- [PROVIDERS.md](docs/PROVIDERS.md) - Provider abstraction architecture and design
 - [TEE_SETUP.md](docs/TEE_SETUP.md) - Production TEE deployment
 - [PHALA_CONFIG.md](docs/PHALA_CONFIG.md) - Phala Cloud setup
-- [SQLITE3.md](docs/SQLITE3.md) - Database and privacy design
-- [LOCAL_SETUP.md](docs/LOCAL_SETUP.md) - Local development
 - [DOCKER.md](docs/DOCKER.md) - Docker environment
+- [SQLITE3.md](docs/SQLITE3.md) - Database and privacy design
 
 ## License
 
