@@ -12,6 +12,11 @@ import { ZkApiRequestDto, RedeemRefundRequestDto } from './dto/api-request.dto';
 import { ZkApiResponseDto } from './dto/api-response.dto';
 import { BlockchainService } from './blockchain.service';
 import { NullifierStoreService } from './nullifier-store.service';
+import { CostEstimationService } from './cost-estimation.service';
+import {
+  CostEstimateRequestDto,
+  CostEstimateResponseDto,
+} from './dto/cost-estimate.dto';
 
 @ApiTags('App')
 @Controller('zk-api')
@@ -20,6 +25,7 @@ export class ZkApiController {
     private readonly zkApiService: ZkApiService,
     private readonly blockchainService: BlockchainService,
     private readonly nullifierStore: NullifierStoreService,
+    private readonly costEstimationService: CostEstimationService,
   ) {}
 
   @Post('request')
@@ -69,6 +75,29 @@ export class ZkApiController {
   })
   async getServerPublicKey(): Promise<{ x: string; y: string }> {
     return this.zkApiService.getServerPublicKey();
+  }
+
+  @Post('estimate-cost')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Estimate cost for API request',
+    description:
+      'Get cost estimate for an API request to help plan deposit amounts. ' +
+      'Returns estimated cost in USD and wei, plus recommended deposit with safety margin.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Cost estimate calculated successfully',
+    type: CostEstimateResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Provider not found',
+  })
+  async estimateCost(
+    @Body() request: CostEstimateRequestDto,
+  ): Promise<CostEstimateResponseDto> {
+    return this.costEstimationService.estimateCost(request);
   }
 
   @Post('redeem-refund')

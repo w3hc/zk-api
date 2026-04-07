@@ -2,8 +2,6 @@ import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { SecretsService } from './config/secrets.service';
 import { AttestationController } from './attestation/attestation.controller';
 import { TeePlatformService } from './attestation/tee-platform.service';
@@ -37,9 +35,8 @@ import { RequestSanitizerMiddleware } from './middleware/request-sanitizer.middl
     AuthModule,
     ZkApiModule,
   ],
-  controllers: [AppController, AttestationController, HealthController],
+  controllers: [AttestationController, HealthController],
   providers: [
-    AppService,
     SecretsService,
     TeePlatformService,
     // Hybrid rate limiting with privacy protection

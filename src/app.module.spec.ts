@@ -1,7 +1,5 @@
 import { Test } from '@nestjs/testing';
 import { AppModule } from './app.module';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { SecretsService } from './config/secrets.service';
 import { AttestationController } from './attestation/attestation.controller';
 import { TeePlatformService } from './attestation/tee-platform.service';
@@ -23,17 +21,9 @@ describe('AppModule', () => {
       imports: [AppModule],
     }).compile();
 
-    const appController = module.get<AppController>(AppController);
-    const attestationController = module.get<AttestationController>(
-      AttestationController,
-    );
-    const healthController = module.get<HealthController>(HealthController);
-    const authController = module.get<AuthController>(AuthController);
-
-    expect(appController).toBeDefined();
-    expect(attestationController).toBeDefined();
-    expect(healthController).toBeDefined();
-    expect(authController).toBeDefined();
+    expect(module.get(AttestationController)).toBeDefined();
+    expect(module.get(HealthController)).toBeDefined();
+    expect(module.get(AuthController)).toBeDefined();
   });
 
   it('should have all providers registered', async () => {
@@ -41,15 +31,8 @@ describe('AppModule', () => {
       imports: [AppModule],
     }).compile();
 
-    const appService = module.get<AppService>(AppService);
-    const secretsService = module.get<SecretsService>(SecretsService);
-    const teePlatformService =
-      module.get<TeePlatformService>(TeePlatformService);
-    const siweService = module.get<SiweService>(SiweService);
-
-    expect(appService).toBeDefined();
-    expect(secretsService).toBeDefined();
-    expect(teePlatformService).toBeDefined();
-    expect(siweService).toBeDefined();
+    expect(module.get(SecretsService)).toBeDefined();
+    expect(module.get(TeePlatformService)).toBeDefined();
+    expect(module.get(SiweService)).toBeDefined();
   });
 });

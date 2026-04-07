@@ -4,7 +4,7 @@ Anonymous API access using zero-knowledge proofs. Users deposit ETH once and mak
 
 Implementation of [ZK API Usage Credits: LLMs and Beyond](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) by Davide Crapis & Vitalik Buterin.
 
-## How It Works
+## Workflow
 
 1. Deposit ETH to smart contract with identity commitment
 2. Generate zero-knowledge proof of solvency for each request
@@ -12,7 +12,7 @@ Implementation of [ZK API Usage Credits: LLMs and Beyond](https://ethresear.ch/t
 4. Receive refund tickets for unused credits
 5. Redeem refunds onchain
 
-## Installation
+## Install
 
 ```bash
 pnpm install
@@ -20,7 +20,7 @@ forge install
 cp .env.template .env.local
 ```
 
-## Testing
+## Test
 
 ```bash
 # Unit tests
@@ -35,7 +35,7 @@ pnpm start:dev       # Terminal 2
 pnpm test:zk         # Terminal 3
 ```
 
-## Running Locally
+## Run
 
 ```bash
 # Generate TLS certificates
@@ -52,7 +52,7 @@ pnpm start:dev
 
 Server runs at `https://localhost:3000`. EdDSA keypair auto-generates if not configured.
 
-## Deployment
+## Deploy
 
 Production deployment requires setting `NODE_ENV=production` and configuring `OPERATOR_PRIVATE_KEY`:
 
@@ -69,27 +69,29 @@ KMS_URL=https://kms.example.com/secrets
 
 The operator private key is never stored on disk. See [TEE_SETUP.md](docs/TEE_SETUP.md) and [PHALA_CONFIG.md](docs/PHALA_CONFIG.md) for production configurations.
 
-## Documentation
+## Docs
 
+- [QUICK_START.md](docs/QUICK_START.md) - Add a new provider in 10 steps (OpenAI, Stripe, any API)
+- [LOCAL_SETUP.md](docs/LOCAL_SETUP.md) - Local development setup
 - [API_REFERENCE.md](docs/API_REFERENCE.md) - API endpoints and request formats
 - [ZK.md](docs/ZK.md) - Zero-knowledge circuits and proofs
 - [OVERVIEW.md](docs/OVERVIEW.md) - System architecture
+- [TESTING_GUIDE.md](docs/TESTING_GUIDE.md) - Testing procedures
+- [PROVIDERS.md](docs/PROVIDERS.md) - Provider abstraction architecture and design
 - [TEE_SETUP.md](docs/TEE_SETUP.md) - Production TEE deployment
 - [PHALA_CONFIG.md](docs/PHALA_CONFIG.md) - Phala Cloud setup
-- [TESTING_GUIDE.md](docs/TESTING_GUIDE.md) - Testing procedures
-- [SQLITE3.md](docs/SQLITE3.md) - Database and privacy design
-- [LOCAL_SETUP.md](docs/LOCAL_SETUP.md) - Local development
 - [DOCKER.md](docs/DOCKER.md) - Docker environment
+- [SQLITE3.md](docs/SQLITE3.md) - Database and privacy design
 
 ## License
 
 LGPL-3.0
 
-## Acknowledgments
+## Credits
 
 Based on [ZK API Usage Credits: LLMs and Beyond](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) by Davide Crapis & Vitalik Buterin.
 
-Built with the Wulong API template by [W3HC](https://github.com/w3hc/wulong).
+Built with the [Wulong API template](https://github.com/w3hc/wulong) by [W3HC](https://github.com/w3hc).
 
 ## Contact
 
