@@ -12,6 +12,11 @@ import { SnarkjsProofService } from './snarkjs-proof.service';
 import { SlashingService } from './slashing.service';
 import { SecretsService } from '../config/secrets.service';
 import { TeePlatformService } from '../attestation/tee-platform.service';
+import { ProviderRegistryService } from '../providers';
+import { DatabaseService } from '../database/database.service';
+import { PricingRepository } from '../pricing/pricing.repository';
+import { PricingOracleService } from '../pricing/pricing-oracle.service';
+import { CostEstimationService } from './cost-estimation.service';
 
 @Module({
   controllers: [ZkApiController],
@@ -28,6 +33,11 @@ import { TeePlatformService } from '../attestation/tee-platform.service';
     SlashingService,
     SecretsService,
     TeePlatformService,
+    ProviderRegistryService,
+    DatabaseService,
+    PricingRepository,
+    PricingOracleService,
+    CostEstimationService,
   ],
   exports: [
     ZkApiService,

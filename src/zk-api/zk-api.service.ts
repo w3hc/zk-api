@@ -162,8 +162,8 @@ export class ZkApiService {
 
     // 6. Calculate actual cost in ETH
     const actualCost = await this.calculateCostInETH(
-      response.usage.inputTokens,
-      response.usage.outputTokens,
+      response.usage.inputTokens ?? response.usage.breakdown?.input ?? 0,
+      response.usage.outputTokens ?? response.usage.breakdown?.output ?? 0,
       model,
     );
 
@@ -286,11 +286,23 @@ export class ZkApiService {
         .map((block) => ('text' in block ? block.text : ''))
         .join('\n');
 
+      const inputTokens = message.usage.input_tokens;
+      const outputTokens = message.usage.output_tokens;
+      const totalTokens = inputTokens + outputTokens;
+
       return {
         content: textContent,
         usage: {
-          inputTokens: message.usage.input_tokens,
-          outputTokens: message.usage.output_tokens,
+          units: totalTokens,
+          unitType: 'tokens',
+          costUSD: 0, // Will be calculated later
+          breakdown: {
+            input: inputTokens,
+            output: outputTokens,
+          },
+          // Backwards compatibility
+          inputTokens,
+          outputTokens,
         },
       };
     } catch (error) {
@@ -314,12 +326,21 @@ export class ZkApiService {
     // Simulate API call
     const inputTokens = Math.ceil(payload.length / 4); // Rough estimate
     const outputTokens = Math.floor(Math.random() * 500) + 100; // Random response size
+    const totalTokens = inputTokens + outputTokens;
 
     const mockResponse = `This is a mock Claude ${model} response to: "${payload.slice(0, 50)}..."`;
 
     return {
       content: mockResponse,
       usage: {
+        units: totalTokens,
+        unitType: 'tokens',
+        costUSD: 0, // Will be calculated later
+        breakdown: {
+          input: inputTokens,
+          output: outputTokens,
+        },
+        // Backwards compatibility
         inputTokens,
         outputTokens,
       },

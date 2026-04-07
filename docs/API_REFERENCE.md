@@ -20,6 +20,7 @@ https://your-domain.com  (production)
   - [Table of Contents](#table-of-contents)
   - [App Endpoints](#app-endpoints)
     - [POST /zk-api/request](#post-zk-apirequest)
+    - [POST /zk-api/estimate-cost](#post-zk-apiestimate-cost)
     - [POST /zk-api/redeem-refund](#post-zk-apiredeem-refund)
     - [GET /zk-api/server-pubkey](#get-zk-apiserver-pubkey)
   - [Available for Future Implementation](#available-for-future-implementation)
@@ -236,6 +237,79 @@ curl -k -X POST https://localhost:3000/zk-api/redeem-refund \
 - The smart contract verifies the EdDSA signature onchain
 - If the nullifier was slashed for double-spending, redemption will fail
 - Redemption requires onchain gas fees (paid by caller)
+
+---
+
+### POST /zk-api/estimate-cost
+
+Estimate the cost of an API request before making a deposit. Returns estimated cost in USD and wei, plus a recommended deposit amount with safety margin.
+
+**Authentication:** None (public endpoint)
+
+**Provider Support:** The API uses a provider abstraction layer that supports multiple external services. Each provider has hardcoded pricing configuration that is automatically seeded into the database when the provider is registered.
+
+**Request Body:**
+
+```json
+{
+  "provider": "claude",           // Provider ID (e.g., 'claude', 'openai', 'mistral')
+  "endpoint": "/v1/messages",     // Optional: specific endpoint
+  "estimatedUnits": 1000,         // Estimated usage units
+  "unitType": "tokens",           // Optional: 'tokens', 'calls', 'bytes', etc.
+  "metadata": {                   // Optional: provider-specific hints
+    "model": "claude-3-5-sonnet",
+    "maxTokens": 2048
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "provider": "claude",
+  "endpoint": "/v1/messages",
+  "estimatedCostUSD": 0.01,
+  "estimatedCostWei": "5000000000000000",
+  "recommendedDepositWei": "6000000000000000",  // +20% safety margin
+  "breakdown": {
+    "baseCostUSD": 0.01,
+    "safetyMarginUSD": 0.002,
+    "currentEthRateUSD": 2000
+  },
+  "confidence": 0.85,
+  "pricingModel": "per-token",
+  "timestamp": "2026-04-06T20:00:00Z"
+}
+```
+
+**Status Codes:**
+- `200 OK` - Cost estimate calculated successfully
+- `404 Not Found` - Provider not found or not supported
+
+**Example:**
+
+```bash
+# Estimate cost for Claude API request
+curl -k -X POST https://localhost:3000/zk-api/estimate-cost \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "claude",
+    "estimatedUnits": 5000,
+    "unitType": "tokens"
+  }'
+
+# Use recommendedDepositWei for smart contract deposit
+```
+
+**Important Notes:**
+
+- Results are cached for 5 minutes
+- The `recommendedDepositWei` includes a 20% safety margin to account for estimation uncertainty
+- Actual costs may vary based on real usage
+- No authentication required - this is a public estimation tool
+- ⚠️ **Note**: Rate limiting recommended for production deployments
+- **Pricing Configuration**: Provider pricing is hardcoded in provider implementations and auto-seeded to the database on registration. Pricing updates require code deployment. See [Provider Abstraction](PROVIDER_ABSTRACTION.md) for details.
 
 ---
 

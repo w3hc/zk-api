@@ -104,6 +104,12 @@ The backend orchestrates proof verification, API execution, and refund signing:
 | **BlockchainService** | [`blockchain.service.ts`](../src/zk-api/blockchain.service.ts) | Ethereum contract interactions (read-only in current version) |
 | **MerkleTreeService** | [`merkle-tree.service.ts`](../src/zk-api/merkle-tree.service.ts) | Off-chain Merkle tree sync with contract |
 
+**Provider Abstraction Layer** (supports multiple API services):
+- **ProviderRegistryService**: Manages registered API providers
+- **PricingOracleService**: Dynamic pricing calculation and cost estimation
+- **CostEstimationService**: Pre-request cost estimation
+- See [Provider Abstraction](PROVIDER_ABSTRACTION.md) for details on adding new providers
+
 **Additional Services** (for broader app functionality):
 - **SiweService**: Sign-In with Ethereum authentication
 - **MlkemEncryptionService**: Post-quantum encryption (ML-KEM)
@@ -333,6 +339,7 @@ The server signs refund tickets with EdDSA (verifiable in ZK circuits):
 - [SQLite Database Implementation](./SQLITE3.md) - Storage architecture and privacy design
 - [ZK Circuits Guide](./ZK.md) - Zero-knowledge proof circuits
 - [API Reference](./API_REFERENCE.md) - Endpoint documentation
+- [Provider Abstraction](./PROVIDER_ABSTRACTION.md) - Multi-provider support and pricing architecture
 - [Metadata Protection](./METADATA_PROTECTION.md) - Privacy and rate limiting implementation
 - [Testing Guide](./TESTING_GUIDE.md) - Test procedures
 

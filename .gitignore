@@ -48,6 +48,7 @@ secrets/
 
 # Database files
 data/
+*.db
 
 # Temp files
 *.swp

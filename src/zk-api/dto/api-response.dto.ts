@@ -1,11 +1,67 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UsageDto {
-  @ApiProperty({ description: 'Number of input tokens' })
-  inputTokens: number;
+  // Universal fields
+  @ApiProperty({ description: 'Total billable units' })
+  units: number;
 
-  @ApiProperty({ description: 'Number of output tokens' })
-  outputTokens: number;
+  @ApiProperty({
+    description: 'Unit type',
+    enum: [
+      'tokens',
+      'calls',
+      'bytes',
+      'seconds',
+      'images',
+      'credits',
+      'custom',
+    ],
+  })
+  unitType:
+    | 'tokens'
+    | 'calls'
+    | 'bytes'
+    | 'seconds'
+    | 'images'
+    | 'credits'
+    | 'custom';
+
+  @ApiProperty({ description: 'Calculated cost in USD' })
+  costUSD: number;
+
+  // Optional breakdown (provider-specific)
+  @ApiPropertyOptional({ description: 'Breakdown of usage by category' })
+  breakdown?: {
+    input?: number; // Input tokens/units
+    output?: number; // Output tokens/units
+    cacheRead?: number; // Cached units (discounted)
+    cacheWrite?: number; // Cache creation units
+    storage?: number; // Storage units (GB-months)
+    transfer?: number; // Data transfer (GB)
+    compute?: number; // Compute seconds
+    [key: string]: number | undefined; // Provider-specific fields
+  };
+
+  // Metadata
+  @ApiPropertyOptional({ description: 'Provider ID' })
+  provider?: string;
+
+  @ApiPropertyOptional({ description: 'API endpoint' })
+  endpoint?: string;
+
+  @ApiPropertyOptional({ description: 'Timestamp' })
+  timestamp?: Date;
+
+  // Deprecated fields (backwards compatibility)
+  @ApiPropertyOptional({
+    description: 'Number of input tokens (deprecated, use breakdown.input)',
+  })
+  inputTokens?: number;
+
+  @ApiPropertyOptional({
+    description: 'Number of output tokens (deprecated, use breakdown.output)',
+  })
+  outputTokens?: number;
 }
 
 export class RefundTicketDto {
