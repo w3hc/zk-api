@@ -919,7 +919,7 @@ After implementing your provider:
 - [Provider Architecture](./PROVIDERS.md) - Detailed architecture documentation
 - [API Reference](./API_REFERENCE.md) - Complete API documentation
 - [Testing Guide](./TESTING_GUIDE.md) - Comprehensive testing strategies
-- [Implementation Plan](./notes/UNIVERSAL_ZK_API_IMPL_PLAN.md) - Overall roadmap
+- [OVERVIEW.md](./OVERVIEW.md) - System architecture and roadmap
 
 ## Example: Claude Provider
 

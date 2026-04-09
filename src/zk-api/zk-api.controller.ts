@@ -17,6 +17,13 @@ import {
   CostEstimateRequestDto,
   CostEstimateResponseDto,
 } from './dto/cost-estimate.dto';
+import { ProofGenService } from './proof-gen.service';
+import {
+  GenerateWithdrawalProofDto,
+  GenerateRefundProofDto,
+  GenerateSlashingProofDto,
+  ProofResponseDto,
+} from './dto/proof-generation.dto';
 
 @ApiTags('App')
 @Controller('zk-api')
@@ -26,6 +33,7 @@ export class ZkApiController {
     private readonly blockchainService: BlockchainService,
     private readonly nullifierStore: NullifierStoreService,
     private readonly costEstimationService: CostEstimationService,
+    private readonly proofGenService: ProofGenService,
   ) {}
 
   @Post('request')
@@ -172,6 +180,165 @@ export class ZkApiController {
       success: true,
       transactionHash: txHash,
       message: `Refund of ${request.value} wei redeemed successfully`,
+    };
+  }
+
+  @Post('proofs/withdrawal')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Generate ZK proof for withdrawal',
+    description:
+      'Generate a Groth16 zero-knowledge proof for withdrawing funds. ' +
+      'The proof demonstrates knowledge of the secret key without revealing it.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Withdrawal proof generated successfully',
+    type: ProofResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input parameters',
+  })
+  async generateWithdrawalProof(
+    @Body() body: GenerateWithdrawalProofDto,
+  ): Promise<ProofResponseDto> {
+    const secretKey = BigInt(body.secretKey);
+    const ticketIndex = BigInt(body.ticketIndex);
+    const signalX = BigInt(body.signalX);
+
+    const { proof, publicSignals } =
+      await this.proofGenService.generateWithdrawalProof({
+        secretKey,
+        ticketIndex,
+        signalX,
+      });
+
+    const idCommitment =
+      await this.proofGenService.generateIdCommitment(secretKey);
+    const { nullifier } = await this.proofGenService.generateRLNSignal(
+      secretKey,
+      ticketIndex,
+      signalX,
+    );
+
+    return {
+      proof: proof.map((p) => '0x' + BigInt(p).toString(16)),
+      publicSignals: publicSignals.map((s) => '0x' + BigInt(s).toString(16)),
+      metadata: {
+        idCommitment: '0x' + idCommitment.toString(16),
+        nullifier: '0x' + nullifier.toString(16),
+        timestamp: Date.now(),
+      },
+    };
+  }
+
+  @Post('proofs/refund')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Generate ZK proof for refund redemption',
+    description:
+      'Generate a Groth16 zero-knowledge proof for redeeming refund tickets. ' +
+      'The proof verifies EdDSA signatures without revealing signature details.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Refund proof generated successfully',
+    type: ProofResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input parameters',
+  })
+  async generateRefundProof(
+    @Body() body: GenerateRefundProofDto,
+  ): Promise<ProofResponseDto> {
+    const secretKey = BigInt(body.secretKey);
+    const ticketIndex = BigInt(body.ticketIndex);
+    const signalX = BigInt(body.signalX);
+
+    const { proof, publicSignals } =
+      await this.proofGenService.generateRefundRedemptionProof({
+        secretKey,
+        ticketIndex,
+        signalX,
+      });
+
+    const idCommitment =
+      await this.proofGenService.generateIdCommitment(secretKey);
+    const { nullifier } = await this.proofGenService.generateRLNSignal(
+      secretKey,
+      ticketIndex,
+      signalX,
+    );
+
+    return {
+      proof: proof.map((p) => '0x' + BigInt(p).toString(16)),
+      publicSignals: publicSignals.map((s) => '0x' + BigInt(s).toString(16)),
+      metadata: {
+        idCommitment: '0x' + idCommitment.toString(16),
+        nullifier: '0x' + nullifier.toString(16),
+        timestamp: Date.now(),
+      },
+    };
+  }
+
+  @Post('proofs/slashing')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Generate ZK proof for double-spend slashing',
+    description:
+      'Generate a Groth16 zero-knowledge proof for slashing a double-spender. ' +
+      'The proof verifies that a secret key was correctly extracted from two RLN signals.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Slashing proof generated successfully',
+    type: ProofResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input parameters or signals do not reveal secret key',
+  })
+  async generateSlashingProof(
+    @Body() body: GenerateSlashingProofDto,
+  ): Promise<ProofResponseDto> {
+    const secretKey = BigInt(body.secretKey);
+    const ticketIndex = BigInt(body.ticketIndex);
+    const signal1 = {
+      x: BigInt(body.signal1.x),
+      y: BigInt(body.signal1.y),
+    };
+    const signal2 = {
+      x: BigInt(body.signal2.x),
+      y: BigInt(body.signal2.y),
+    };
+
+    const { proof, publicSignals } =
+      await this.proofGenService.generateDoubleSpendProof({
+        secretKey,
+        ticketIndex,
+        signal1,
+        signal2,
+      });
+
+    const idCommitment =
+      await this.proofGenService.generateIdCommitment(secretKey);
+    const { nullifier } = await this.proofGenService.generateRLNSignal(
+      secretKey,
+      ticketIndex,
+      signal1.x,
+    );
+
+    return {
+      proof: proof.map((p) => '0x' + BigInt(p).toString(16)),
+      publicSignals: publicSignals.map((s) => '0x' + BigInt(s).toString(16)),
+      metadata: {
+        idCommitment: '0x' + idCommitment.toString(16),
+        nullifier: '0x' + nullifier.toString(16),
+        secretKey: '0x' + secretKey.toString(16),
+        timestamp: Date.now(),
+      },
     };
   }
 }

@@ -21,9 +21,15 @@ contract DeployZkApiCredits is Script {
         uint256 minRlnStake = 0.1 ether;
         uint256 minPolicyStake = 0.1 ether;
 
-        // Server EdDSA public key (placeholder for development)
-        bytes32 serverPubKeyX = bytes32(uint256(1));
-        bytes32 serverPubKeyY = bytes32(uint256(2));
+        // Server EdDSA public key (derived from dev private key in refund-signer.service.ts)
+        // Private key: sha256('zk-api-refund-signer-dev-key')
+        // Public key derived using circomlib EdDSA
+        bytes32 serverPubKeyX = bytes32(
+            0x223c26d8cb8f90c04d8b20d0b4fd192513d02b7995fb8bb3c5029fa9a0b911c5
+        );
+        bytes32 serverPubKeyY = bytes32(
+            0x2053712a2eba096768aa455f49bb5101636116378558658544e9c7fb5a5c9b0c
+        );
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -39,6 +45,16 @@ contract DeployZkApiCredits is Script {
         console.log('Server address:', serverAddress);
         console.log('Min RLN stake:', minRlnStake);
         console.log('Min Policy stake:', minPolicyStake);
+
+        // Real Groth16 verifiers are deployed automatically in the constructor
+        console.log('\nVerifiers deployed:');
+        console.log('Withdrawal verifier:', address(zkApi.withdrawalVerifier()));
+        console.log('Refund verifier:', address(zkApi.refundVerifier()));
+        console.log('Slashing verifier:', address(zkApi.slashingVerifier()));
+
+        console.log('\nUsing real Groth16 verifiers from api_credit_proof_test circuit');
+        console.log('Circuit: circuits/api_credit_proof_test.circom');
+        console.log('Constraints: 1,349');
 
         vm.stopBroadcast();
     }

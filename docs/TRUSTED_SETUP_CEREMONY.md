@@ -212,7 +212,10 @@ When implementing the trusted setup ceremony for production:
 
 3. **Mainnet** (Production):
    - Organize public ceremony with 50+ participants for maximum security
-   - Use full production circuit ([api_credit_proof.circom](../circuits/api_credit_proof.circom))
+   - Use production circuits:
+     - [withdrawal.circom](../circuits/withdrawal.circom) - Merkle tree membership proof
+     - [refund_redemption.circom](../circuits/refund_redemption.circom) - EdDSA signature verification
+     - [double_spend_slashing.circom](../circuits/double_spend_slashing.circom) - RLN secret key extraction
    - Generate larger Powers of Tau (2^16 or higher)
    - Multiple rounds of contributions
    - At least 1 airgapped contributor
@@ -259,4 +262,15 @@ To migrate from test circuit to production:
 
 5. Update public signals extraction to match full circuit outputs
 
-See [ZK.md](./ZK.md) for integration with the broader system architecture.
+## Alignment with Original Proposal
+
+The [original ZK API Credits proposal](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) suggested using **ZK-STARKs** which require no trusted setup. This implementation uses **Groth16** instead for:
+- ✅ Faster verification (~10-20ms vs ~100-500ms)
+- ✅ Smaller proofs (~200 bytes vs ~80-200KB)
+- ✅ Lower onchain gas costs (~280k vs ~1-5M)
+- ❌ Requires trusted setup ceremony (this document)
+- ❌ Not post-quantum secure
+
+**Migration Path**: The system can migrate to transparent SNARKs (PLONK, STARKs) in future versions without changing the core protocol.
+
+See [ZK.md](./ZK.md) for integration with the broader system architecture and [OVERVIEW.md](./OVERVIEW.md#implementation-alignment-with-original-proposal) for complete comparison with original proposal.

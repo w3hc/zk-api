@@ -863,7 +863,7 @@ Phase 1 is **100% backwards compatible**. No breaking changes to:
 
 ## References
 
-- [Universal ZK-API Implementation Plan](../docs/notes/UNIVERSAL_ZK_API_IMPL_PLAN.md)
+- [OVERVIEW.md](./OVERVIEW.md) - System architecture and implementation status
 - [API Reference](./API_REFERENCE.md)
 - [Testing Guide](./TESTING_GUIDE.md)
 - [SQLite Documentation](./SQLITE3.md)
@@ -872,7 +872,7 @@ Phase 1 is **100% backwards compatible**. No breaking changes to:
 
 For questions or issues related to the provider abstraction layer:
 - GitHub Issues: https://github.com/your-org/zk-api/issues
-- Implementation Plan: `/docs/notes/UNIVERSAL_ZK_API_IMPL_PLAN.md`
+- Documentation: See [OVERVIEW.md](./OVERVIEW.md) for system architecture
 
 ## License
 

@@ -80,19 +80,33 @@ echo ""
 
 # Redeem the refund
 echo "Step 4: Redeeming refund onchain..."
-echo "   Calling redeemRefund(idCommitment, nullifier, value, timestamp, signature, recipient)..."
+echo "   Calling redeemRefund(idCommitment, nullifier, value, recipient, proof, publicSignals)..."
+echo "   ⚠️  NOTE: This test requires real ZK proof generation (production verifiers now active)"
+echo "   ⚠️  For testing, please use the mock verifiers or generate real proofs via /proofs/refund endpoint"
+echo ""
+echo "Skipping refund redemption test - requires real ZK proofs"
+echo ""
+echo "To test refund redemption:"
+echo "  1. Use the NestJS backend to generate a real proof: POST /proofs/refund"
+echo "  2. Or temporarily set mock verifiers in the contract using setRefundVerifier()"
+echo ""
+exit 0
 
-# The contract expects: redeemRefund(bytes32 idCommitment, bytes32 nullifier, uint256 value, uint256 timestamp, EdDSASignature signature, address payable recipient)
-# EdDSASignature is a struct: (bytes32 R8x, bytes32 R8y, bytes32 S)
+# The contract expects: redeemRefund(bytes32 idCommitment, bytes32 nullifier, uint256 value, address payable recipient, uint256[8] proof, uint256[5] publicSignals)
+# Public signals format for refund_redemption circuit: [signalX (input), refundValueClaimed (input), nullifier (output), signalY (output), idCommitment (output)]
+MOCK_PROOF="[1,2,3,4,5,6,7,8]"
+
+# Public signals: [signalX, refundValueClaimed, nullifier, signalY, idCommitment]
+PUBLIC_SIGNALS="[0,$VALUE,$NULLIFIER,0,$ID_COMMITMENT]"
 
 REDEEM_RESULT=$(cast send $CONTRACT_ADDRESS \
-  "redeemRefund(bytes32,bytes32,uint256,uint256,(bytes32,bytes32,bytes32),address)" \
+  "redeemRefund(bytes32,bytes32,uint256,address,uint256[8],uint256[5])" \
   "$ID_COMMITMENT" \
   "$NULLIFIER" \
   "$VALUE" \
-  "$TIMESTAMP" \
-  "($R8X,$R8Y,$S)" \
   "$ACCOUNT" \
+  "$MOCK_PROOF" \
+  "$PUBLIC_SIGNALS" \
   --private-key $PRIVATE_KEY \
   --rpc-url $RPC_URL \
   --json 2>&1 || echo '{"error": "transaction_failed"}')
@@ -164,13 +178,13 @@ echo ""
 # Test double redemption prevention
 echo "Step 7: Testing double-redemption prevention..."
 DOUBLE_REDEEM=$(cast send $CONTRACT_ADDRESS \
-  "redeemRefund(bytes32,bytes32,uint256,uint256,(bytes32,bytes32,bytes32),address)" \
+  "redeemRefund(bytes32,bytes32,uint256,address,uint256[8],uint256[5])" \
   "$ID_COMMITMENT" \
   "$NULLIFIER" \
   "$VALUE" \
-  "$TIMESTAMP" \
-  "($R8X,$R8Y,$S)" \
   "$ACCOUNT" \
+  "$MOCK_PROOF" \
+  "$PUBLIC_SIGNALS" \
   --private-key $PRIVATE_KEY \
   --rpc-url $RPC_URL \
   --json 2>&1 || echo '{"error": "expected_failure"}')

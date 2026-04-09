@@ -5,6 +5,10 @@ import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import '@openzeppelin/contracts/utils/Pausable.sol';
 import '@openzeppelin/contracts/access/Ownable.sol';
 import './PoseidonHasher.sol';
+import './BabyJubJub.sol';
+import './WithdrawalVerifier.sol';
+import './RefundRedemptionVerifier.sol';
+import './DoubleSpendSlashingVerifier.sol';
 
 /**
  * @title ZkApiCredits
@@ -68,6 +72,11 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     /// @notice Minimum stake requirements
     uint256 public minRlnStake;
     uint256 public minPolicyStake;
+
+    /// @notice ZK Proof Verifiers
+    WithdrawalVerifier public withdrawalVerifier;
+    RefundRedemptionVerifier public refundVerifier;
+    DoubleSpendSlashingVerifier public slashingVerifier;
 
     // ============ Events ============
 
@@ -139,6 +148,11 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
             x: _serverPubKeyX,
             y: _serverPubKeyY
         });
+
+        // Deploy ZK proof verifiers
+        withdrawalVerifier = new WithdrawalVerifier();
+        refundVerifier = new RefundRedemptionVerifier();
+        slashingVerifier = new DoubleSpendSlashingVerifier();
     }
 
     // ============ Core Functions ============
@@ -180,26 +194,43 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     }
 
     /**
-     * @notice Withdraw remaining funds (if not slashed)
+     * @notice Withdraw remaining funds using ZK proof (secret key never revealed!)
      * @param _idCommitment The user's identity commitment
      * @param _recipient Address to receive the withdrawn funds
-     * @param _secretKey The user's secret key (to prove ownership)
+     * @param _proof ZK proof components [pA, pB, pC] in Groth16 format
+     * @param _publicSignals Public inputs [idCommitment, merkleRoot, nullifier, x, y, pathElements]
+     * @dev Verifies a ZK proof that the caller knows the secret key without revealing it
      */
     function withdraw(
         bytes32 _idCommitment,
         address payable _recipient,
-        bytes32 _secretKey
+        uint256[8] calldata _proof,
+        uint256[6] calldata _publicSignals
     ) external nonReentrant {
         Deposit storage userDeposit = deposits[_idCommitment];
         if (!userDeposit.active) revert DepositNotFound();
 
-        // Verify ownership: Poseidon(secretKey) should equal idCommitment
-        // Convert bytes32 to uint256 for Poseidon hash
-        uint256 secretKeyUint = uint256(_secretKey);
-        bytes32 computedCommitment = bytes32(
-            PoseidonHasher.hash(secretKeyUint)
+        // Verify ZK proof of ownership
+        // Public signals: [signalX (input), merkleRootExpected (input), nullifier (output), signalY (output), idCommitment (output), merkleRoot (output)]
+        // The proof verifies that:
+        // 1. Prover knows secretKey such that Poseidon(secretKey) = idCommitment
+        // 2. idCommitment is in the Merkle tree with root = merkleRoot
+        // 3. Valid RLN signal generation (signalX, signalY) for the withdrawal
+        if (!withdrawalVerifier.verifyWithdrawalProof(_proof, _publicSignals)) {
+            revert InvalidProof();
+        }
+
+        // Verify public signals match expected values
+        // _publicSignals[4] is the idCommitment output
+        require(
+            _publicSignals[4] == uint256(_idCommitment),
+            'idCommitment mismatch'
         );
-        if (computedCommitment != _idCommitment) revert InvalidSecretKey();
+        // _publicSignals[5] is the merkleRoot output
+        require(
+            _publicSignals[5] == uint256(merkleRoot),
+            'merkleRoot mismatch'
+        );
 
         uint256 totalAmount = userDeposit.rlnStake + userDeposit.policyStake;
 
@@ -216,37 +247,74 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     }
 
     /**
-     * @notice Slash user for double-spending (reusing same ticket index with different message)
+     * @notice Slash user for double-spending using ZK proof (RLN math verified in circuit!)
      * @param _secretKey The revealed secret key (extracted from two RLN signals)
-     * @param _nullifier1 First nullifier from double-spend
-     * @param _nullifier2 Second nullifier from double-spend
-     * @param _signal1 First RLN signal (x1, y1)
-     * @param _signal2 Second RLN signal (x2, y2)
+     * @param _nullifier The nullifier from the double-spend
+     * @param _idCommitment The user's identity commitment
+     * @param _proof ZK proof components [pA, pB, pC] in Groth16 format
+     * @param _publicSignals Public inputs [idCommitment, secretKey, nullifier, externalNullifier]
+     * @dev Verifies a ZK proof that validates the secret key extraction from two RLN signals
+     * @dev The circuit proves:
+     *      1. Two RLN signals with the same nullifier but different x values exist
+     *      2. Secret key was correctly extracted: k = (y1*x2 - y2*x1) / (x2 - x1)
+     *      3. Poseidon(secretKey) = idCommitment
+     *      4. All RLN mathematics are correct
      * @dev Reward goes to the slasher who provided the proof
      */
     function slashDoubleSpend(
         bytes32 _secretKey,
-        bytes32 _nullifier1,
-        bytes32 _nullifier2,
-        Signal calldata _signal1,
-        Signal calldata _signal2
+        bytes32 _nullifier,
+        bytes32 _idCommitment,
+        uint256[8] calldata _proof,
+        uint256[4] calldata _publicSignals
     ) external nonReentrant {
-        // Compute identity commitment using Poseidon hash (matches circuit)
-        uint256 secretKeyUint = uint256(_secretKey);
-        bytes32 idCommitment = bytes32(PoseidonHasher.hash(secretKeyUint));
-        Deposit storage userDeposit = deposits[idCommitment];
+        Deposit storage userDeposit = deposits[_idCommitment];
 
         if (revealedSecretKeys[_secretKey]) revert AlreadySlashed();
         if (!userDeposit.active) revert DepositNotFound();
 
-        // Verify the secret key was correctly extracted from two different signals
-        // This is a simplified version - full implementation would verify RLN math
-        require(_nullifier1 == _nullifier2, 'Nullifiers must match');
-        require(_signal1.x != _signal2.x, 'Signals must differ');
+        // Verify ZK proof of double-spend slashing
+        // Public signals: [idCommitment, secretKey, nullifier, externalNullifier]
+        // The proof verifies:
+        // 1. Two RLN signals exist with the same nullifier but different x values
+        // 2. Secret key was correctly extracted using RLN math: k = (y1*x2 - y2*x1) / (x2 - x1)
+        // 3. Poseidon(secretKey) = idCommitment (proves ownership)
+        // 4. All RLN signal equations are valid: y = k + a*x
+        if (!slashingVerifier.verifySlashingProof(_proof, _publicSignals)) {
+            revert InvalidProof();
+        }
+
+        // Verify public signals match expected values
+        // Public signals: [secretKeyClaimed (input), nullifierExpected (input), idCommitment (output), nullifier (output)]
+        require(
+            _publicSignals[0] == uint256(_secretKey),
+            'secretKey mismatch'
+        );
+        require(
+            _publicSignals[1] == uint256(_nullifier),
+            'nullifier (expected) mismatch'
+        );
+        require(
+            _publicSignals[2] == uint256(_idCommitment),
+            'idCommitment mismatch'
+        );
+        require(
+            _publicSignals[3] == uint256(_nullifier),
+            'nullifier (output) mismatch'
+        );
+
+        // Verify the secret key matches the idCommitment
+        bytes32 computedCommitment = bytes32(
+            PoseidonHasher.hash(uint256(_secretKey))
+        );
+        require(
+            computedCommitment == _idCommitment,
+            'Secret key does not match idCommitment'
+        );
 
         // Mark as slashed
         revealedSecretKeys[_secretKey] = true;
-        slashedNullifiers[_nullifier1] = true;
+        slashedNullifiers[_nullifier] = true;
         userDeposit.active = false;
 
         uint256 reward = userDeposit.rlnStake;
@@ -256,7 +324,7 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         (bool success, ) = msg.sender.call{value: reward}('');
         require(success, 'Transfer failed');
 
-        emit DoubleSpendSlashed(_secretKey, _nullifier1, msg.sender, reward);
+        emit DoubleSpendSlashed(_secretKey, _nullifier, msg.sender, reward);
     }
 
     /**
@@ -293,22 +361,26 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     }
 
     /**
-     * @notice Redeem a signed refund ticket from the server
+     * @notice Redeem refund tickets using ZK proof (signatures verified in circuit!)
      * @param _idCommitment User's identity commitment
      * @param _nullifier Nullifier from the original API request
-     * @param _refundValue Refund amount in wei
-     * @param _timestamp When the refund was issued
-     * @param _signature Server's EdDSA signature on the refund data
+     * @param _refundValue Total refund amount in wei
      * @param _recipient Address to receive the refund
-     * @dev Users submit signed refund tickets obtained from API responses
+     * @param _proof ZK proof components [pA, pB, pC] in Groth16 format
+     * @param _publicSignals Public inputs [idCommitment, merkleRoot, nullifier, x, y]
+     * @dev Verifies a ZK proof that validates EdDSA signatures on refund tickets
+     * @dev The circuit proves:
+     *      1. User has valid refund tickets signed by the server
+     *      2. Signatures are valid (EdDSA verification in circuit)
+     *      3. Total refund amount matches the claimed value
      */
     function redeemRefund(
         bytes32 _idCommitment,
         bytes32 _nullifier,
         uint256 _refundValue,
-        uint256 _timestamp,
-        EdDSASignature calldata _signature,
-        address payable _recipient
+        address payable _recipient,
+        uint256[8] calldata _proof,
+        uint256[5] calldata _publicSignals
     ) external nonReentrant {
         Deposit storage userDeposit = deposits[_idCommitment];
         if (!userDeposit.active) revert DepositNotFound();
@@ -319,11 +391,33 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         // Check if nullifier was slashed
         if (slashedNullifiers[_nullifier]) revert AlreadySlashed();
 
-        // Verify server signature on refund ticket
-        bytes32 message = _hashRefundData(_nullifier, _refundValue, _timestamp);
-        if (!_verifyEdDSASignature(message, _signature)) {
-            revert InvalidSignature();
+        // Verify ZK proof of valid refund redemption
+        // Public signals: [signalX (input), refundValueClaimed (input), nullifier (output), signalY (output), idCommitment (output)]
+        // The proof verifies:
+        // 1. User has valid refund ticket with EdDSA signature from server
+        // 2. Signature is cryptographically valid (verified in circuit)
+        // 3. Refund value matches _refundValue
+        // 4. Nullifier is correctly computed from secretKey and ticketIndex
+        if (!refundVerifier.verifyRefundProof(_proof, _publicSignals)) {
+            revert InvalidProof();
         }
+
+        // Verify public signals match expected values
+        // _publicSignals[1] is the refundValueClaimed input
+        require(
+            _publicSignals[1] == _refundValue,
+            'refundValue mismatch'
+        );
+        // _publicSignals[2] is the nullifier output
+        require(
+            _publicSignals[2] == uint256(_nullifier),
+            'nullifier mismatch'
+        );
+        // _publicSignals[4] is the idCommitment output
+        require(
+            _publicSignals[4] == uint256(_idCommitment),
+            'idCommitment mismatch'
+        );
 
         // Mark refund as redeemed
         redeemedRefunds[_nullifier] = true;
@@ -402,6 +496,33 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     }
 
     /**
+     * @notice Set withdrawal verifier (for testing or upgrades)
+     */
+    function setWithdrawalVerifier(
+        WithdrawalVerifier _verifier
+    ) external onlyOwner {
+        withdrawalVerifier = _verifier;
+    }
+
+    /**
+     * @notice Set refund verifier (for testing or upgrades)
+     */
+    function setRefundVerifier(
+        RefundRedemptionVerifier _verifier
+    ) external onlyOwner {
+        refundVerifier = _verifier;
+    }
+
+    /**
+     * @notice Set slashing verifier (for testing or upgrades)
+     */
+    function setSlashingVerifier(
+        DoubleSpendSlashingVerifier _verifier
+    ) external onlyOwner {
+        slashingVerifier = _verifier;
+    }
+
+    /**
      * @notice Pause the contract (emergency)
      */
     function pause() external onlyOwner {
@@ -464,54 +585,89 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
 
     /**
      * @notice Hash refund data for signature verification
-     * @dev Must match EXACTLY what the circuit expects (line 101-102 of api_credit_proof.circom)
-     * @dev Circuit: refundHashers[i] = Poseidon(1); refundHashers[i].inputs[0] <== refundValues[i]
-     * @dev Server signs: EdDSA_sign(Poseidon(refundValue))
+     * @dev Must match EXACTLY what the server signs (refund-signer.service.ts line 180)
+     * @dev Server signs: EdDSA_sign(Poseidon(nullifier, value, timestamp))
      *
      * Security Note:
-     * - The signature only covers the refund value (to match circuit constraints)
+     * - The signature covers nullifier, value, and timestamp for complete integrity
      * - Replay protection comes from the nullifier being marked as redeemed
-     * - Each nullifier can only be redeemed once (line 305 check)
+     * - Each nullifier can only be redeemed once (line 317 check)
      * - The nullifier ties the refund to a specific API request
+     * - Timestamp prevents signature reuse across different redemption attempts
      */
     function _hashRefundData(
-        bytes32 /* _nullifier */,
+        bytes32 _nullifier,
         uint256 _value,
-        uint256 /* _timestamp */
+        uint256 _timestamp
     ) internal pure returns (bytes32) {
-        // Hash only the refund value using Poseidon(1) to match circuit
-        // Nullifier and timestamp are not included in the signature to maintain
-        // compatibility with the circuit's signature verification
-        return bytes32(PoseidonHasher.hash(_value));
+        // Hash all three values using Poseidon to match server implementation
+        // This matches refund-signer.service.ts: poseidon([nullifier, value, timestamp])
+        return bytes32(PoseidonHasher.hash3(uint256(_nullifier), _value, _timestamp));
     }
 
     /**
      * @notice Verify EdDSA signature on refund ticket
-     * @dev Simplified verification for development - production would use proper EdDSA library
-     * @dev This is a placeholder that checks signature structure
+     * @dev TEMPORARY: Full EdDSA verification requires >30M gas (2 scalar muls on Baby Jubjub)
+     * @dev For production, use one of these solutions:
+     *      1. ZK proof of EdDSA signature verification (verify signature in circuit)
+     *      2. Optimized precompiles or assembly implementations
+     *      3. BLS signatures with BLS12-381 precompiles (EIP-2537)
+     *      4. Signature aggregation to verify multiple refunds at once
+     *
+     * @dev Current implementation does basic validation:
+     *      - Signature components are in valid range
+     *      - Points are on the Baby Jubjub curve
+     *      - Relies on economic incentives: Invalid signatures would be reported by users
+     *        who can prove fraud and slash the server's stake
+     *
+     * @param _message Message hash (Poseidon hash of refund data)
+     * @param _signature EdDSA signature (R8x, R8y, S)
+     * @return True if signature passes basic validation
      */
     function _verifyEdDSASignature(
         bytes32 _message,
         EdDSASignature calldata _signature
     ) internal view returns (bool) {
-        // In production, implement proper EdDSA signature verification using:
-        // - circomlibjs for compatibility with ZK circuits
-        // - or a Solidity EdDSA verification library
+        // Convert bytes32 to uint256
+        uint256 R8x = uint256(_signature.R8x);
+        uint256 R8y = uint256(_signature.R8y);
+        uint256 S = uint256(_signature.S);
+        uint256 Ax = uint256(serverPublicKey.x);
+        uint256 Ay = uint256(serverPublicKey.y);
 
-        // For now, we do basic validation:
-        // 1. Signature components are non-zero
-        // 2. Message is non-zero
+        // Basic validation checks (low gas cost)
 
+        // 1. Message must be non-zero
         if (_message == bytes32(0)) return false;
-        if (_signature.R8x == bytes32(0)) return false;
-        if (_signature.R8y == bytes32(0)) return false;
-        if (_signature.S == bytes32(0)) return false;
 
-        // In production: Verify signature against serverPublicKey
-        // EdDSA verification: s*B = R + H(R,A,M)*A
-        // where A = serverPublicKey, R = (R8x, R8y), s = S
+        // 2. Verify signature components are in valid range
+        if (S >= BabyJubJub.SUBORDER) return false;
+        if (R8x >= BabyJubJub.PRIME_Q) return false;
+        if (R8y >= BabyJubJub.PRIME_Q) return false;
 
-        return true; // Placeholder - accepts all non-zero signatures
+        // 3. Verify R is on the curve
+        if (!BabyJubJub.isOnCurve(R8x, R8y)) return false;
+
+        // 4. Verify public key is on the curve (cached check, should always pass)
+        if (!BabyJubJub.isOnCurve(Ax, Ay)) return false;
+
+        // TEMPORARY: Skip expensive elliptic curve operations (>30M gas)
+        // Full verification would require:
+        // - Computing H = Poseidon(R8x, R8y, Ax, Ay, M)
+        // - Computing S*B (scalar mul ~200 iterations)
+        // - Computing (H*8)*A (scalar mul ~200 iterations)
+        // - Verifying S*B = R + (H*8)*A
+        //
+        // This is implemented in BabyJubJub.sol and works correctly,
+        // but exceeds block gas limit.
+        //
+        // Security relies on:
+        // - Only trusted server can create signatures
+        // - Nullifier prevents double-spending
+        // - Users can challenge invalid signatures and slash server
+        // - Economic incentive: Server loses stake if it signs invalid refunds
+
+        return true;
     }
 
     // ============ Helper Structs ============
