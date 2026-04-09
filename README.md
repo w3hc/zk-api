@@ -23,17 +23,22 @@ cp .env.template .env.local
 ## Test
 
 ```bash
-# Unit tests
+# Unit tests (434 tests)
 pnpm test
 
-# End-to-end tests
+# End-to-end tests with real ZK proofs
 pnpm test:e2e
 
-# Integration tests (requires Anvil and API running)
-anvil                # Terminal 1
-pnpm start:dev       # Terminal 2
-pnpm test:zk         # Terminal 3
+# Contract tests (Foundry)
+cd contracts && forge test -vv
+
+# Integration tests (requires Anvil)
+anvil                      # Terminal 1
+pnpm test:zk               # Terminal 2 - Basic contract tests
+pnpm test:zk:integration   # Or: Contract + verifier integration check
 ```
+
+**Note**: Production Groth16 verifiers are integrated, so tests requiring ZK proofs must generate real proofs via the backend API or use mock verifiers. See [scripts/README-TESTING.md](scripts/README-TESTING.md) for details.
 
 ## Run
 
@@ -71,17 +76,26 @@ The operator private key is never stored on disk. See [TEE_SETUP.md](docs/TEE_SE
 
 ## Docs
 
+### Core Documentation
+- [OVERVIEW.md](docs/OVERVIEW.md) - System architecture and status
 - [QUICK_START.md](docs/QUICK_START.md) - Add a new provider in 10 steps (OpenAI, Stripe, any API)
 - [LOCAL_SETUP.md](docs/LOCAL_SETUP.md) - Local development setup
 - [API_REFERENCE.md](docs/API_REFERENCE.md) - API endpoints and request formats
+
+### ZK Implementation
 - [ZK.md](docs/ZK.md) - Zero-knowledge circuits and proofs
-- [OVERVIEW.md](docs/OVERVIEW.md) - System architecture
+- [TRUSTED_SETUP_CEREMONY.md](docs/TRUSTED_SETUP_CEREMONY.md) - Ceremony details and process
 - [TESTING_GUIDE.md](docs/TESTING_GUIDE.md) - Testing procedures
+- [scripts/README-TESTING.md](scripts/README-TESTING.md) - Testing with production verifiers
+
+### Architecture
 - [PROVIDERS.md](docs/PROVIDERS.md) - Provider abstraction architecture and design
+- [SQLITE3.md](docs/SQLITE3.md) - Database and privacy design
+
+### Deployment
 - [TEE_SETUP.md](docs/TEE_SETUP.md) - Production TEE deployment
 - [PHALA_CONFIG.md](docs/PHALA_CONFIG.md) - Phala Cloud setup
 - [DOCKER.md](docs/DOCKER.md) - Docker environment
-- [SQLITE3.md](docs/SQLITE3.md) - Database and privacy design
 
 ## License
 

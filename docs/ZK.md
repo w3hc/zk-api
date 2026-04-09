@@ -534,9 +534,43 @@ circom api_credit_proof.circom --r1cs --wasm --sym
 - [ ] Gas optimization
 - [ ] MEV protection for slashing transactions
 
+## Implementation Notes vs Original Proposal
+
+This implementation follows the [original ZK API Credits proposal](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) with key differences:
+
+### Proof System Choice
+- **Original**: ZK-STARK (post-quantum secure, no trusted setup)
+- **Current**: Groth16 (ZK-SNARK)
+  - Rationale: ~10-20x faster verification, ~400x smaller proofs, lower gas costs
+  - Trade-off: Requires trusted setup, not post-quantum
+  - Migration path: Can switch to STARKs/PLONK in v2
+
+### Circuit Architecture
+- **Original**: Single large circuit for all operations
+- **Current**: Three domain-specific circuits
+  - `withdrawal.circom` - Merkle membership + identity ownership
+  - `refund_redemption.circom` - EdDSA signature batch verification
+  - `double_spend_slashing.circom` - RLN secret key extraction
+  - Benefits: Smaller trusted setups, faster proving, modular upgrades
+
+### Merkle Tree
+- **Original**: "Contract inserts ID into on-chain Merkle Tree"
+- **Current**: Backend maintains tree, contract stores root
+  - Issue: Creates server dependency for withdrawals
+  - Planned: Implement onchain incremental Merkle tree
+
+### Trust Assumptions
+For production deployment, address these trust dependencies:
+1. **Onchain Merkle tree** - Users can withdraw without server
+2. **Server key rotation** - Update EdDSA public key with timelock
+3. **Admin timelocks** - Prevent instant parameter changes
+4. **Emergency withdrawal** - Automatic after server downtime period
+
+See [OVERVIEW.md](./OVERVIEW.md#implementation-alignment-with-original-proposal) for complete comparison.
+
 ## References
 
-- [ZK API Credits Proposal](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) - Davide Crapis & Vitalik Buterin
+- [ZK API Credits Proposal](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) - Davide Crapis & Vitalik Buterin (Original specification)
 - [Rate-Limit Nullifiers Documentation](https://rate-limiting-nullifier.github.io/rln-docs/)
 - [Circom Documentation](https://docs.circom.io/)
 - [SnarkJS](https://github.com/iden3/snarkjs)

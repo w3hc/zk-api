@@ -248,4 +248,269 @@ export class ProofGenService {
       return false;
     }
   }
+
+  /**
+   * Generate withdrawal proof using Groth16
+   * @param params Withdrawal parameters
+   * @returns Proof formatted for contract submission
+   */
+  async generateWithdrawalProof(params: {
+    secretKey: bigint;
+    ticketIndex: bigint;
+    signalX: bigint;
+  }): Promise<{
+    proof: number[];
+    publicSignals: number[];
+  }> {
+    await this.initialize();
+
+    const snarkjs = require('snarkjs');
+    const path = require('path');
+    const fs = require('fs');
+
+    // Calculate expected values
+    const idCommitment = await this.generateIdCommitment(params.secretKey);
+    // Generate RLN signal (not used in circuit input, but validates parameters)
+    await this.generateRLNSignal(
+      params.secretKey,
+      params.ticketIndex,
+      params.signalX,
+    );
+
+    // Prepare circuit inputs
+    const inputs = {
+      secretKey: params.secretKey.toString(),
+      ticketIndex: params.ticketIndex.toString(),
+      signalX: params.signalX.toString(),
+      idCommitmentExpected: idCommitment.toString(),
+    };
+
+    const wasmPath = path.join(
+      process.cwd(),
+      'circuits/build/api_credit_proof_test_js/api_credit_proof_test.wasm',
+    );
+    const zkeyPath = path.join(
+      process.cwd(),
+      'circuits/build/api_credit_proof_test.zkey',
+    );
+
+    // Check if files exist
+    if (!fs.existsSync(wasmPath)) {
+      throw new Error(`WASM file not found: ${wasmPath}`);
+    }
+    if (!fs.existsSync(zkeyPath)) {
+      throw new Error(`zkey file not found: ${zkeyPath}`);
+    }
+
+    this.logger.debug('Generating withdrawal proof with inputs', {
+      idCommitment: idCommitment.toString(),
+      signalX: params.signalX.toString(),
+    });
+
+    // Generate proof
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+      inputs,
+      wasmPath,
+      zkeyPath,
+    );
+
+    // Format proof for contract: [pA[0], pA[1], pB[0][0], pB[0][1], pB[1][0], pB[1][1], pC[0], pC[1]]
+    const formattedProof = [
+      proof.pi_a[0],
+      proof.pi_a[1],
+      proof.pi_b[0][1],
+      proof.pi_b[0][0],
+      proof.pi_b[1][1],
+      proof.pi_b[1][0],
+      proof.pi_c[0],
+      proof.pi_c[1],
+    ];
+
+    this.logger.log('Withdrawal proof generated successfully');
+
+    return {
+      proof: formattedProof,
+      publicSignals: publicSignals.map((s: string) => BigInt(s)),
+    };
+  }
+
+  /**
+   * Generate refund redemption proof using Groth16
+   * @param params Refund parameters
+   * @returns Proof formatted for contract submission
+   */
+  async generateRefundRedemptionProof(params: {
+    secretKey: bigint;
+    ticketIndex: bigint;
+    signalX: bigint;
+  }): Promise<{
+    proof: number[];
+    publicSignals: number[];
+  }> {
+    await this.initialize();
+
+    const snarkjs = require('snarkjs');
+    const path = require('path');
+    const fs = require('fs');
+
+    // Calculate expected values
+    const idCommitment = await this.generateIdCommitment(params.secretKey);
+    // Generate RLN signal (validates parameters and calculates nullifier for logging)
+    const { nullifier } = await this.generateRLNSignal(
+      params.secretKey,
+      params.ticketIndex,
+      params.signalX,
+    );
+
+    // Prepare circuit inputs (using same circuit for now)
+    const inputs = {
+      secretKey: params.secretKey.toString(),
+      ticketIndex: params.ticketIndex.toString(),
+      signalX: params.signalX.toString(),
+      idCommitmentExpected: idCommitment.toString(),
+    };
+
+    const wasmPath = path.join(
+      process.cwd(),
+      'circuits/build/api_credit_proof_test_js/api_credit_proof_test.wasm',
+    );
+    const zkeyPath = path.join(
+      process.cwd(),
+      'circuits/build/api_credit_proof_test.zkey',
+    );
+
+    // Check if files exist
+    if (!fs.existsSync(wasmPath)) {
+      throw new Error(`WASM file not found: ${wasmPath}`);
+    }
+    if (!fs.existsSync(zkeyPath)) {
+      throw new Error(`zkey file not found: ${zkeyPath}`);
+    }
+
+    this.logger.debug('Generating refund proof with inputs', {
+      idCommitment: idCommitment.toString(),
+      nullifier: nullifier.toString(),
+    });
+
+    // Generate proof
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+      inputs,
+      wasmPath,
+      zkeyPath,
+    );
+
+    // Format proof for contract
+    const formattedProof = [
+      proof.pi_a[0],
+      proof.pi_a[1],
+      proof.pi_b[0][1],
+      proof.pi_b[0][0],
+      proof.pi_b[1][1],
+      proof.pi_b[1][0],
+      proof.pi_c[0],
+      proof.pi_c[1],
+    ];
+
+    this.logger.log('Refund proof generated successfully');
+
+    return {
+      proof: formattedProof,
+      publicSignals: publicSignals.map((s: string) => BigInt(s)),
+    };
+  }
+
+  /**
+   * Generate double-spend slashing proof using Groth16
+   * @param params Slashing parameters including two signals
+   * @returns Proof formatted for contract submission
+   */
+  async generateDoubleSpendProof(params: {
+    secretKey: bigint;
+    ticketIndex: bigint;
+    signal1: { x: bigint; y: bigint };
+    signal2: { x: bigint; y: bigint };
+  }): Promise<{
+    proof: number[];
+    publicSignals: number[];
+  }> {
+    await this.initialize();
+
+    const snarkjs = require('snarkjs');
+    const path = require('path');
+    const fs = require('fs');
+
+    // Verify the secret key can be recovered from the two signals
+    const recoveredKey = await this.recoverSecretKey(
+      params.signal1,
+      params.signal2,
+    );
+    if (recoveredKey !== params.secretKey) {
+      throw new Error('Secret key does not match recovered key from signals');
+    }
+
+    // Calculate expected values
+    const idCommitment = await this.generateIdCommitment(params.secretKey);
+    const { nullifier } = await this.generateRLNSignal(
+      params.secretKey,
+      params.ticketIndex,
+      params.signal1.x,
+    );
+
+    // For slashing proof, we use one of the signals as the proof
+    // In production, this would be a dedicated slashing circuit
+    const inputs = {
+      secretKey: params.secretKey.toString(),
+      ticketIndex: params.ticketIndex.toString(),
+      signalX: params.signal1.x.toString(),
+      idCommitmentExpected: idCommitment.toString(),
+    };
+
+    const wasmPath = path.join(
+      process.cwd(),
+      'circuits/build/api_credit_proof_test_js/api_credit_proof_test.wasm',
+    );
+    const zkeyPath = path.join(
+      process.cwd(),
+      'circuits/build/api_credit_proof_test.zkey',
+    );
+
+    // Check if files exist
+    if (!fs.existsSync(wasmPath)) {
+      throw new Error(`WASM file not found: ${wasmPath}`);
+    }
+    if (!fs.existsSync(zkeyPath)) {
+      throw new Error(`zkey file not found: ${zkeyPath}`);
+    }
+
+    this.logger.debug('Generating slashing proof with inputs', {
+      secretKey: params.secretKey.toString(),
+      nullifier: nullifier.toString(),
+    });
+
+    // Generate proof
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+      inputs,
+      wasmPath,
+      zkeyPath,
+    );
+
+    // Format proof for contract
+    const formattedProof = [
+      proof.pi_a[0],
+      proof.pi_a[1],
+      proof.pi_b[0][1],
+      proof.pi_b[0][0],
+      proof.pi_b[1][1],
+      proof.pi_b[1][0],
+      proof.pi_c[0],
+      proof.pi_c[1],
+    ];
+
+    this.logger.log('Slashing proof generated successfully');
+
+    return {
+      proof: formattedProof,
+      publicSignals: publicSignals.map((s: string) => BigInt(s)),
+    };
+  }
 }

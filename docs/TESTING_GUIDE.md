@@ -616,9 +616,34 @@ The ZK circuit proves the following statement:
 - Server's public key is stored onchain
 - Refunds can only be redeemed once (nullifier tracking)
 
+## Implementation vs Original Proposal
+
+This test suite validates the implementation of the [ZK API Credits proposal](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) by Davide Crapis & Vitalik Buterin.
+
+### Key Validation Points
+
+✅ **Core Protocol Matches**:
+- RLN nullifiers prevent double-spending (validated in `test-double-spend.sh`)
+- Dual staking (RLN + Policy) implemented correctly
+- Refund ticket accumulation with EdDSA signatures
+- Privacy via Poseidon hash commitments
+
+🔄 **Implementation Differences**:
+- Uses **Groth16** instead of ZK-STARK (faster, smaller proofs)
+- Three separate circuits instead of monolithic (modular, easier to audit)
+- Backend Merkle tree instead of fully onchain (pending improvement)
+
+⚠️ **Known Limitations**:
+- Mock circuit used for testing (production circuits: `withdrawal.circom`, `refund_redemption.circom`, `double_spend_slashing.circom`)
+- Merkle tree not fully onchain yet (creates server dependency)
+- Full solvency formula `(i+1)·C_max ≤ D+R` not yet in circuit
+
+See [OVERVIEW.md](./OVERVIEW.md#implementation-alignment-with-original-proposal) for detailed comparison.
+
 ## Next Steps
 
 - See [ZK.md](./ZK.md) for zero-knowledge proof architecture details
 - See [API_REFERENCE.md](./API_REFERENCE.md) for full API documentation
-- See [ZK_IMPLEMENTATION_SUMMARY.md](../ZK_IMPLEMENTATION_SUMMARY.md) for implementation summary
+- See [OVERVIEW.md](./OVERVIEW.md) for implementation status and comparison with original proposal
+- See [TRUSTED_SETUP_CEREMONY.md](./TRUSTED_SETUP_CEREMONY.md) for ceremony requirements
 - Deploy to a TEE for production security guarantees
