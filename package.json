@@ -24,7 +24,7 @@
     "setup:circuit": "ts-node scripts/setup-trusted-setup.ts",
     "test:zk": "bash scripts/test-complete-flow.sh && bash scripts/test-double-spend.sh && bash scripts/test-invalid-proofs.sh",
     "test:zk:integration": "ts-node scripts/test-contract-integration.ts",
-    "dance": "pnpm format && pnpm lint && pnpm test && pnpm test:e2e && pnpm build && pnpm outdated || true"
+    "dance": "pnpm format && pnpm lint && pnpm test && pnpm test:e2e && pnpm build && (cd contracts && forge test) && pnpm outdated || true"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
