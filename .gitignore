@@ -60,8 +60,8 @@ tmp/
 
 # Test artifacts (contains secret keys and nullifiers)
 .test-artifacts.json
-# Circom build artifacts
-circuits/build/
+# Circom build artifacts - keep compiled circuits for CI
+# circuits/build/
 circuits/*_test.circom
 circuits/*.sym
 

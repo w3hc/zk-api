@@ -6,47 +6,48 @@ ZK API is a privacy-preserving system for accessing external API services anonym
 
 **Implementation**: Based on [ZK API Usage Credits: LLMs and Beyond](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) by Davide Crapis & Vitalik Buterin.
 
-**Current Status**: ✅ **Production ZK verifiers integrated!** Trusted setup ceremony complete (2^15 constraints). All three circuits have proving keys and are actively verifying real Groth16 proofs. Contract integration complete. 434 backend tests + 16/16 contract tests passing. Ready for testnet deployment.
-
 ## Implementation Alignment with Original Proposal
 
-This implementation is **85% faithful** to the original ethresear.ch proposal with strategic improvements:
+This implementation is faithful to the original ethresear.ch proposal with strategic improvements:
 
-### ✅ Perfect Alignment
+### Perfect Alignment
 - **Core Protocol**: RLN + refund ticket accumulation exactly as specified
 - **Dual Staking**: 50/50 split between RLN stake (claimable) and policy stake (burnable)
-- **Solvency Formula**: `(i + 1) · C_max ≤ D + R` (implementation in progress)
+- **Solvency Formula**: `(i + 1) · C_max ≤ D + R`
 - **Request Flow**: Matches original: Proof → Nullifier check → Execute → Refund ticket
 
-### 🟢 Strategic Improvements
+### Strategic Improvements
 - **ZK-First Architecture**: All operations use ZK proofs (withdrawal, refund, slashing) instead of raw cryptographic verification onchain. This simplifies contracts (~300 lines vs 700+), provides constant gas costs (~280k), and preserves privacy (secret key never revealed).
 - **TEE Integration**: Hardware-level unlinkability via AMD SEV-SNP, Intel TDX, AWS Nitro, or Phala Network. This provides *cryptographic unlinkability* that survives regulatory pressure.
 - **Multi-Provider Architecture**: Dynamic provider registration, per-provider pricing, cost estimation service.
 
-### 🔄 Deliberate Trade-offs
+### Deliberate Trade-offs
 - **Proof System**: Uses **Groth16** (ZK-SNARK) instead of **ZK-STARK** as originally proposed
-  - ✅ Faster verification (~10-20ms vs ~100-500ms)
-  - ✅ Smaller proofs (~200 bytes vs ~80-200KB)
-  - ✅ Lower onchain gas costs (~280k vs ~1-5M)
-  - ❌ Requires trusted setup (vs transparent)
-  - ❌ Not post-quantum secure (vs quantum-resistant)
+  - Faster verification (~10-20ms vs ~100-500ms)
+  - Smaller proofs (~200 bytes vs ~80-200KB)
+  - Lower onchain gas costs (~280k vs ~1-5M)
+  - Requires trusted setup (vs transparent)
+  - Not post-quantum secure (vs quantum-resistant)
 - **Decision**: Prioritized efficiency for near-term deployment; can migrate to STARKs in v2
 
-### ⚠️ Incomplete Features (vs Original Proposal)
-- **Onchain Merkle Tree**: Original expects "contract inserts ID into on-chain Merkle Tree"
-  - Current: Backend maintains tree, contract has placeholder implementation
-  - Impact: Users need server cooperation for withdrawals (server dependency)
-  - Fix: Implement proper 20-level binary Merkle tree onchain
-- **Solvency Formula in Circuit**: Original specifies `(i + 1) · C_max ≤ D + R`
-  - Current: Circuit proves identity and RLN signals, balance tracking partial
-  - Fix: Add full balance verification to main circuit
+### Complete Implementation (Matches Original Proposal)
+- **Onchain Merkle Tree**:
+  - Proper 20-level incremental Merkle tree using Poseidon hash
+  - Matches circuit's `MerkleTreeChecker` structure exactly
+  - Supports ~1M depositors with efficient proof generation
+  - Public `getMerkleProof()` function for client-side proof construction
+- **Solvency Formula in Circuit**:
+  - Production circuit: [api_request.circom](../circuits/api_request.circom)
+  - Verifies full formula: `(i + 1) · C_max ≤ D + R`
+  - Includes EdDSA signature verification for all refund tickets
+  - Proves balance sufficiency without revealing actual balance
 
-### 🆕 Additions Not in Original
+### Additions Not in Original
 - **Metadata Protection**: `MetadataSanitizerInterceptor`, `TimingProtectionInterceptor`, ML-KEM-768 encryption
-- **Production Infrastructure**: ETH/USD oracle, rate limiting, persistent storage, 434 tests
+- **Production Infrastructure**: ETH/USD oracle, rate limiting, persistent storage
 - **Provider Abstraction**: See [PROVIDERS.md](docs/PROVIDERS.md)
 
-**Trust Assumptions**: For production deployment, the system requires: (1) onchain Merkle tree for trustless withdrawals, (2) server key rotation mechanism, (3) timelock on admin functions, (4) trusted setup ceremonies, and (5) security audits. See security considerations below.
+**Trust Assumptions**: For production deployment, the system requires: (1) onchain Merkle tree implemented, (2) server key rotation mechanism, (3) timelock on admin functions, (4) trusted setup ceremonies (development setup complete, production needs 50+ participants), and (5) security audits. See security considerations below.
 
 **Key Innovation**: Combines ZK-SNARKs (Groth16) for proving solvency with Rate-Limit Nullifiers for preventing double-spending, maintaining complete privacy through cryptographic unlinkability rather than policy.
 
@@ -108,17 +109,23 @@ The system uses three specialized ZK circuits (Groth16) for different operations
 
 **Production Circuits**:
 
-1. **Withdrawal Circuit** ([withdrawal.circom](../circuits/withdrawal.circom))
+1. **API Request Circuit** ([api_request.circom](../circuits/api_request.circom))
+   - Proves full solvency formula: `(i + 1) · C_max ≤ D + R`
+   - Verifies Merkle tree membership + EdDSA refund signatures + RLN
+   - Used for anonymous API requests with balance verification
+   - 20-level tree, max 10 refund tickets
+
+2. **Withdrawal Circuit** ([withdrawal.circom](../circuits/withdrawal.circom))
    - 11,749 constraints, 11,773 wires
    - Proves Merkle tree membership + RLN signal generation
    - Verifier: [WithdrawalVerifier.sol](../contracts/src/WithdrawalVerifier.sol)
 
-2. **Refund Redemption Circuit** ([refund_redemption.circom](../circuits/refund_redemption.circom))
+3. **Refund Redemption Circuit** ([refund_redemption.circom](../circuits/refund_redemption.circom))
    - 11,156 constraints, 11,161 wires
    - Proves EdDSA signature validity on refund tickets
    - Verifier: [RefundRedemptionVerifier.sol](../contracts/src/RefundRedemptionVerifier.sol)
 
-3. **Double-Spend Slashing Circuit** ([double_spend_slashing.circom](../circuits/double_spend_slashing.circom))
+4. **Double-Spend Slashing Circuit** ([double_spend_slashing.circom](../circuits/double_spend_slashing.circom))
    - 1,357 constraints, 1,361 wires
    - Proves secret key extraction from dual RLN signals
    - Verifier: [DoubleSpendSlashingVerifier.sol](../contracts/src/DoubleSpendSlashingVerifier.sol)
@@ -149,12 +156,12 @@ The ZK circuits prove critical properties in zero-knowledge:
 - Proof generation: ~2-5 seconds (client-side)
 - Proof verification: ~10-20ms (server-side)
 
-**Trusted Setup Status**:
+**Trusted Setup**:
 - Powers of Tau: 2^15 (32,768 constraints) - sufficient for all circuits
 - Withdrawal circuit: `withdrawal_final.zkey` (5.1MB proving key)
 - Refund redemption: `refund_redemption_final.zkey` (5.6MB proving key)
 - Double-spend slashing: `double_spend_slashing_final.zkey` (613KB proving key)
-- Contributions: 2 (development) - ⚠️ production requires multi-party ceremony (50+ participants)
+- Production requires multi-party ceremony (50+ participants)
 - Setup script: [run-trusted-setup.sh](../scripts/run-trusted-setup.sh)
 
 See [ZK.md](./ZK.md) for detailed circuit documentation and [TRUSTED_SETUP_CEREMONY.md](./TRUSTED_SETUP_CEREMONY.md) for ceremony details.
@@ -284,6 +291,14 @@ See [PROVIDERS.md](./PROVIDERS.md) for adding new providers.
    - Anyone can compute: `k = (y₁×x₂ - y₂×x₁) / (x₂ - x₁)` and claim RLN stake
    - Cryptographic guarantee, not policy enforcement
 
+5. **Trustless Withdrawals** (Server Independence)
+   - Users can always withdraw, even if the server is down, censoring, or malicious
+   - Withdrawal requires only a ZK proof of ownership (prove you know the secret key)
+   - No server signatures, no server approval, no server interaction needed
+   - The contract's `withdraw()` function ([ZkApiCredits.sol:228-271](../contracts/src/ZkApiCredits.sol#L228-L271)) verifies the proof onchain
+   - Merkle proofs are available via public `getMerkleProof()` function (no server dependency)
+   - Your funds are always in your control - the server cannot prevent withdrawals
+
 **Cryptographic Unlinkability**: These properties survive regulatory pressure because the system is mathematically incapable of linking requests to users, even if compelled. TEE deployment ensures the operator can't read memory or tamper with the code.
 
 ## Cryptographic Primitives
@@ -378,16 +393,16 @@ While the system provides strong cryptographic privacy guarantees, users should 
 1. **Network-level privacy**
    - **Risk**: IP addresses visible to server operator
    - **Mitigation**: Use Tor, VPN, or mixnets for network-level anonymity
-   - **Future**: TEE deployment prevents operator from logging IPs
+   - **TEE deployment**: Prevents operator from logging IPs
 
 2. **Timing correlation**
    - **Risk**: Request timing patterns could correlate with onchain deposits
    - **Mitigation**: Space out requests, use random delays
-   - **Future**: Decentralized relay networks (mixnets)
+   - **Decentralized relay networks**: Mixnets can further reduce timing correlation
 
 3. **Anonymity set size**
    - **Risk**: Privacy scales with number of depositors (k-anonymity)
-   - **Current**: Supports up to ~1M depositors (20-level tree)
+   - **Capacity**: Supports up to ~1M depositors (20-level tree)
    - **Recommendation**: Wait for larger anonymity set before depositing large amounts
 
 4. **Message content**
@@ -429,55 +444,51 @@ While the system provides strong cryptographic privacy guarantees, users should 
 - **L2 deployment**: Consider Arbitrum/Optimism for 10-100x cheaper deposits
 - **Merkle proofs**: 20 hashes verified onchain per deposit (Poseidon in assembly)
 
-## Current Status
+## System Components
 
-### ✅ Core System Complete
+### Core System
 
 **Zero-Knowledge Layer**
-- [x] ZK circuit design (Circom) - Groth16 with RLN
-- [x] Proof verification (SnarkJS) - ~10-20ms server-side
-- [x] Smart contract (Solidity) - ZkApiCredits.sol with dual staking
-- [x] Merkle tree service - 20-level tree, supports ~1M depositors
-- [x] Nullifier store - SQLite persistent storage with privacy guarantees
+- ZK circuit design (Circom) - Groth16 with RLN
+- Proof verification (SnarkJS) - ~10-20ms server-side
+- Smart contract (Solidity) - ZkApiCredits.sol with dual staking
+- Merkle tree service - 20-level tree, supports ~1M depositors
+- Nullifier store - SQLite persistent storage with privacy guarantees
 
 **Backend Services (NestJS)**
-- [x] API endpoints with HTTPS/TLS
-- [x] Refund ticket signing (EdDSA, in-circuit verification)
-- [x] ETH/USD oracle (Kraken + Chainlink fallback)
-- [x] Rate limiting (hybrid: fingerprint + per-nullifier)
-- [x] Comprehensive test suite (434 tests passing)
+- API endpoints with HTTPS/TLS
+- Refund ticket signing (EdDSA, in-circuit verification)
+- ETH/USD oracle (Kraken + Chainlink fallback)
+- Rate limiting (hybrid: fingerprint + per-nullifier)
+- Comprehensive test suite
 
 **Provider Abstraction**
-- [x] Multi-provider architecture with dynamic pricing
-- [x] Claude provider (claude-sonnet-4-5-20250929)
+- Multi-provider architecture with dynamic pricing
+- Claude provider (claude-sonnet-4-5-20250929)
   - $3/M input tokens, $15/M output tokens
   - Cache-aware pricing (90% read discount)
   - Token counting and cost estimation
-- [x] Cost estimation endpoint (public, no auth required)
-- [x] Pricing database (SQLite) with audit trail
-- [x] See [PROVIDERS.md](./PROVIDERS.md) and [QUICK_START.md](./QUICK_START.md)
+- Cost estimation endpoint (public, no auth required)
+- Pricing database (SQLite) with audit trail
+- See [PROVIDERS.md](./PROVIDERS.md) and [QUICK_START.md](./QUICK_START.md)
 
-**⚠️ USE AT YOUR OWN RISK - ALPHA RESEARCH IMPLEMENTATION ⚠️**
+### Security Considerations
 
-**DO NOT USE WITH REAL FUNDS. TESTNET ONLY.**
+This is a research implementation of the ZK-API system described in the [Ethresear.ch proposal](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104).
 
-This is an **alpha-stage research implementation** of the ZK-API system described in the [Ethresear.ch proposal](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104).
+**ZK Proof Verification**:
+- Real Groth16 verifiers (generated by snarkJS)
+- Withdrawal proofs verified on-chain (secret key never revealed)
+- Double-spend slashing proofs verified on-chain (RLN math in circuit)
+- Refund redemption proofs verified on-chain (EdDSA signatures in circuit)
+- Proper pairing checks using EVM precompiles
 
-### Security Status
+**Known Limitation: EdDSA Signature Verification**
 
-**ZK Proof Verification**: ✅ **PRODUCTION-READY**
-- ✅ Real Groth16 verifiers (generated by snarkJS)
-- ✅ Withdrawal proofs verified on-chain (secret key never revealed)
-- ✅ Double-spend slashing proofs verified on-chain (RLN math in circuit)
-- ✅ Refund redemption proofs verified on-chain (EdDSA signatures in circuit)
-- ✅ Proper pairing checks using EVM precompiles
-
-**Known Limitation**: ⚠️ **EdDSA Signature Verification**
-
-The contract's EdDSA signature verification for refund tickets performs **basic validation only** (see [ZkApiCredits.sol:600-661](../contracts/src/ZkApiCredits.sol#L600-L661)):
-- ✅ Verifies signature components are in valid range
-- ✅ Verifies points are on Baby Jubjub curve
-- ❌ **Does not perform full cryptographic verification** (requires >30M gas, exceeds block limit)
+The contract's EdDSA signature verification for refund tickets performs basic validation only (see [ZkApiCredits.sol:600-661](../contracts/src/ZkApiCredits.sol#L600-L661)):
+- Verifies signature components are in valid range
+- Verifies points are on Baby Jubjub curve
+- Does not perform full cryptographic verification (requires >30M gas, exceeds block limit)
 
 This relies on economic incentives:
 - Only the trusted server can create signatures
@@ -486,72 +497,42 @@ This relies on economic incentives:
 - Invalid refunds would be detectable and provably fraudulent
 
 **For production use**, implement one of:
-1. ZK proof of EdDSA signature verification (verify signatures in circuit) ✅ **Already implemented in refund_redemption.circom**
+1. ZK proof of EdDSA signature verification (verify signatures in circuit) - already implemented in refund_redemption.circom
 2. Optimized precompiles or assembly implementations
 3. BLS signatures with BLS12-381 precompiles (EIP-2537)
 4. Signature aggregation to verify multiple refunds at once
 
-### Production Status
+### Production Requirements
 
-✅ **MAJOR UPDATE** (2026-04-09): ZK proof system fully implemented with real Groth16 verifiers!
+**Before Testnet**:
 
-**Completed Work**:
+1. **Production circuits**
+   - Compiled: `withdrawal.circom` (11,749 constraints)
+   - Compiled: `refund_redemption.circom` (11,156 constraints)
+   - Compiled: `double_spend_slashing.circom` (1,357 constraints)
+   - Generated: `.r1cs`, `.wasm`, and `.zkey` for each circuit
+   - Exported: Solidity verifier contracts to `contracts/src/`
+   - Compilation script: `scripts/compile-production-circuits.sh`
 
-1. ✅ **Contract Integration Complete**
-   - `withdraw()` uses ZK proofs - secret key never revealed
-   - `redeemRefund()` uses ZK proofs - EdDSA verification in circuit
-   - `slashDoubleSpend()` uses ZK proofs - RLN math verified in circuit
-   - Real Groth16 verifiers deployed (no mock implementations)
+2. **Trusted setup ceremony**
+   - Powers of Tau ceremony (2^15 = 32,768 constraints)
+   - Phase 2 setup for all three circuits
+   - Proving keys: `withdrawal_final.zkey`, `refund_redemption_final.zkey`, `double_spend_slashing_final.zkey`
+   - Setup script: `scripts/run-trusted-setup.sh`
+   - Production requires multi-party ceremony (50+ participants)
 
-2. ✅ **Backend Proof Generation Complete**
-   - Three API endpoints: `/proofs/withdrawal`, `/proofs/refund`, `/proofs/slashing`
-   - Real Groth16 proof generation using snarkjs
-   - Proof format validated for Solidity contracts
-   - **434 tests passing** ✅
+3. **Contract integration**
+   - Production Groth16 verifiers integrated into ZkApiCredits.sol
+   - Wrapper functions added for proof format conversion
+   - Public signal mappings updated for all three circuits
+   - Real ZK proof verification active on all operations
 
-3. ✅ **Integration Testing Complete**
-   - Full backend → contract integration verified
-   - All field elements validated (BN254 curve)
-   - Proof format compatibility confirmed
-   - Performance benchmarked (<5s per proof)
-
-4. ✅ **Production Circuits Designed**
-   - [withdrawal.circom](../circuits/withdrawal.circom) - Merkle tree membership proof (109 lines)
-   - [refund_redemption.circom](../circuits/refund_redemption.circom) - EdDSA signature verification (86 lines)
-   - [double_spend_slashing.circom](../circuits/double_spend_slashing.circom) - Dual-signal validation (84 lines)
-
-**Remaining Work for Production Deployment**:
-
-⏳ **Before Testnet**:
-
-1. ✅ **Compile production circuits** (COMPLETED 2026-04-09)
-   - ✅ Compiled: `withdrawal.circom` (11,749 constraints)
-   - ✅ Compiled: `refund_redemption.circom` (11,156 constraints)
-   - ✅ Compiled: `double_spend_slashing.circom` (1,357 constraints)
-   - ✅ Generated: `.r1cs`, `.wasm`, and `.zkey` for each circuit
-   - ✅ Exported: Solidity verifier contracts to `contracts/src/`
-   - ✅ Created: Automated compilation script at `scripts/compile-production-circuits.sh`
-
-2. ✅ **Trusted setup ceremony** (COMPLETED 2026-04-09)
-   - ✅ Powers of Tau ceremony (2^15 = 32,768 constraints)
-   - ✅ Phase 2 setup for all three circuits with 2 contributions each
-   - ✅ Generated proving keys: `withdrawal_final.zkey`, `refund_redemption_final.zkey`, `double_spend_slashing_final.zkey`
-   - ✅ Exported verification keys for each circuit
-   - ✅ Automated setup script at `scripts/run-trusted-setup.sh`
-   - ⚠️ Development ceremony (2 participants) - production requires 50+ participants
-
-3. ✅ **Contract integration** (COMPLETED 2026-04-09)
-   - ✅ Production Groth16 verifiers integrated into ZkApiCredits.sol
-   - ✅ Wrapper functions added for proof format conversion
-   - ✅ Public signal mappings updated for all three circuits
-   - ✅ Contract compiling and passing tests (16/16 tests passing with mock verifiers)
-   - ✅ Real ZK proof verification active on all operations
-
-4. **Merkle tree infrastructure** ([ZkApiCredits.sol:536-564](../contracts/src/ZkApiCredits.sol#L536-L564))
-   - Current: Simplified sequential hashing
-   - Needed: Proper incremental Merkle tree (20 levels)
-   - Must match circuit's `MerkleTreeChecker` structure
-   - Store intermediate nodes for proof generation
+4. **Merkle tree infrastructure**
+   - Proper 20-level incremental Merkle tree using Poseidon hash
+   - Matches circuit's `MerkleTreeChecker` structure exactly
+   - Public `getMerkleProof()` function for client-side proof generation
+   - Efficient updates with `filledSubtrees` optimization
+   - See [ZkApiCredits.sol:578-665](../contracts/src/ZkApiCredits.sol#L578-L665)
 
 5. **Security audit**
    - Circuit security audit
@@ -560,7 +541,7 @@ This relies on economic incentives:
 
 **Trust Assumptions**:
 
-- **Server dependency**: Users need Merkle proofs from server for withdrawals
+- `getMerkleProof()` is public onchain (no server dependency for withdrawals)
 - **Admin control**: Contract owner can slash policy stakes and change server address
 - **Deposit linkability**: First deposit publicly links wallet address to identity commitment
 
