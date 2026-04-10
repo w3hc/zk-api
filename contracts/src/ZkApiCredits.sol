@@ -49,6 +49,15 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     /// @notice Set of all identity commitments (for Merkle tree construction)
     bytes32[] public identityCommitments;
 
+    /// @notice 20-level Merkle tree depth (supports ~1M depositors)
+    uint256 public constant TREE_DEPTH = 20;
+
+    /// @notice Zero values for Merkle tree (Poseidon(0))
+    bytes32[20] public zeros;
+
+    /// @notice Filled subtrees at each level for incremental Merkle tree
+    bytes32[20] public filledSubtrees;
+
     /// @notice Mapping of slashed nullifiers (prevents re-use after slashing)
     mapping(bytes32 => bool) public slashedNullifiers;
 
@@ -153,6 +162,21 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         withdrawalVerifier = new WithdrawalVerifier();
         refundVerifier = new RefundRedemptionVerifier();
         slashingVerifier = new DoubleSpendSlashingVerifier();
+
+        // Initialize 20-level Merkle tree with zero values
+        // zeros[i] = Poseidon(zeros[i-1], zeros[i-1])
+        // This matches the circuit's expectation for empty tree nodes
+        bytes32 currentZero = bytes32(0);
+        for (uint256 i = 0; i < TREE_DEPTH; i++) {
+            zeros[i] = currentZero;
+            filledSubtrees[i] = currentZero;
+            if (i < TREE_DEPTH - 1) {
+                currentZero = bytes32(PoseidonHasher.hash(uint256(currentZero), uint256(currentZero)));
+            }
+        }
+
+        // Initial Merkle root is the hash at the top level
+        merkleRoot = bytes32(PoseidonHasher.hash(uint256(currentZero), uint256(currentZero)));
     }
 
     // ============ Core Functions ============
@@ -540,37 +564,104 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
 
     /**
      * @notice Update the Merkle root after adding new identity commitment
-     * @dev Simplified implementation - production would use efficient incremental Merkle tree
-     * @dev Uses Poseidon hashing to match the ZK circuit's Merkle tree verification
+     * @dev Implements proper 20-level incremental Merkle tree using Poseidon hash
+     * @dev This matches the circuit's MerkleTreeChecker structure exactly
+     *
+     * Algorithm:
+     * 1. Start with the new leaf at level 0
+     * 2. For each level, hash current node with its sibling
+     * 3. If index bit is 0, node is left child: hash(node, filledSubtree)
+     * 4. If index bit is 1, node is right child: hash(filledSubtree, node)
+     * 5. Update filledSubtrees when a level is complete
+     * 6. Final hash at level 20 is the new Merkle root
      */
     function _updateMerkleRoot() internal {
-        // Simplified: Hash all commitments with Poseidon (not a real Merkle tree)
-        // In production, use proper Poseidon-based incremental Merkle tree
-        // This must match the structure used in the circuit's MerkleTreeChecker
+        uint256 leafIndex = identityCommitments.length - 1;
+        bytes32 currentHash = identityCommitments[leafIndex];
 
-        uint256 len = identityCommitments.length;
-        if (len == 0) {
-            merkleRoot = bytes32(0);
-        } else if (len == 1) {
-            merkleRoot = identityCommitments[0];
-        } else {
-            // Build a simple Poseidon Merkle tree
-            // Note: This is a simplified version. A production implementation should:
-            // 1. Use an incremental Merkle tree structure
-            // 2. Store intermediate nodes for efficient proof generation
-            // 3. Match the exact tree structure used in the circuit (20 levels)
-
-            uint256 currentHash = uint256(identityCommitments[0]);
-            for (uint256 i = 1; i < len; i++) {
-                currentHash = PoseidonHasher.hash(
-                    currentHash,
-                    uint256(identityCommitments[i])
+        // Incrementally update the Merkle tree
+        // For each level, hash with the appropriate sibling
+        for (uint256 i = 0; i < TREE_DEPTH; i++) {
+            // Check if current index is left (0) or right (1) child
+            if (leafIndex % 2 == 0) {
+                // Left child: hash(current, zero)
+                // Store current in filledSubtrees for future right siblings
+                filledSubtrees[i] = currentHash;
+                currentHash = bytes32(
+                    PoseidonHasher.hash(uint256(currentHash), uint256(zeros[i]))
+                );
+            } else {
+                // Right child: hash(filledSubtree, current)
+                currentHash = bytes32(
+                    PoseidonHasher.hash(
+                        uint256(filledSubtrees[i]),
+                        uint256(currentHash)
+                    )
                 );
             }
-            merkleRoot = bytes32(currentHash);
+
+            // Move to parent level
+            leafIndex = leafIndex / 2;
         }
 
-        emit MerkleRootUpdated(merkleRoot, len);
+        merkleRoot = currentHash;
+        emit MerkleRootUpdated(merkleRoot, identityCommitments.length);
+    }
+
+    /**
+     * @notice Get Merkle proof for a given leaf index
+     * @dev Returns path elements and path indices needed for ZK proof
+     * @param _leafIndex Index of the leaf in the tree
+     * @return pathElements Array of sibling hashes at each level
+     * @return pathIndices Array of position bits (0=left, 1=right)
+     */
+    function getMerkleProof(
+        uint256 _leafIndex
+    ) external view returns (bytes32[20] memory pathElements, uint8[20] memory pathIndices) {
+        require(_leafIndex < identityCommitments.length, "Leaf index out of bounds");
+
+        uint256 currentIndex = _leafIndex;
+
+        for (uint256 i = 0; i < TREE_DEPTH; i++) {
+            pathIndices[i] = uint8(currentIndex % 2);
+
+            if (currentIndex % 2 == 0) {
+                // Left child, sibling is on the right
+                if (currentIndex + 1 < identityCommitments.length) {
+                    // Sibling exists, calculate it
+                    pathElements[i] = _getNodeHash(currentIndex + 1, i);
+                } else {
+                    // No sibling, use zero
+                    pathElements[i] = zeros[i];
+                }
+            } else {
+                // Right child, sibling is on the left
+                pathElements[i] = _getNodeHash(currentIndex - 1, i);
+            }
+
+            currentIndex = currentIndex / 2;
+        }
+
+        return (pathElements, pathIndices);
+    }
+
+    /**
+     * @notice Internal helper to compute hash of a node at given level
+     * @dev Reconstructs node hash from leaf index and level
+     */
+    function _getNodeHash(uint256 _leafIndex, uint256 _level) internal view returns (bytes32) {
+        if (_level == 0) {
+            // Base case: return the leaf
+            return identityCommitments[_leafIndex];
+        }
+
+        // For higher levels, we need to check filledSubtrees
+        // This is a simplified version - full implementation would cache all intermediate nodes
+        if (_leafIndex >= identityCommitments.length) {
+            return zeros[_level];
+        }
+
+        return filledSubtrees[_level];
     }
 
     /**

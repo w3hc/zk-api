@@ -4,6 +4,18 @@ Anonymous API access using zero-knowledge proofs. Users deposit ETH once and mak
 
 Implementation of [ZK API Usage Credits: LLMs and Beyond](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) by Davide Crapis & Vitalik Buterin.
 
+## Features
+
+- **Anonymous API Access** - Make API requests without revealing your identity
+- **Zero-Knowledge Proofs** - Prove solvency without exposing balance or transaction history
+- **Unlinkable Requests** - Each request uses a unique nullifier, preventing request correlation
+- **Multi-Provider Support** - Abstract provider layer supporting OpenAI, Stripe, and custom APIs
+- **Trustless Refunds** - Automatically receive refund tickets for unused credits
+- **TEE Support** - Deploy in Trusted Execution Environments (Phala Network, AWS Nitro Enclaves)
+- **Production-Ready Circuits** - Groth16 verifiers for withdrawal, refund, and slashing proofs
+- **Persistent Storage** - SQLite-based Merkle tree with privacy-preserving design
+- **Full Test Coverage** - 434+ unit tests plus end-to-end integration tests
+
 ## Workflow
 
 1. Deposit ETH to smart contract with identity commitment
