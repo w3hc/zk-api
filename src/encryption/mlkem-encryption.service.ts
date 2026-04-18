@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { createMlKem1024 } from 'mlkem';
+import { TeeKeyManagerService } from '../attestation/tee-key-manager.service';
 import * as crypto from 'crypto';
 
 /**
  * ML-KEM (Kyber) quantum-resistant encryption service
  *
  * This service provides ML-KEM encryption/decryption using ML-KEM-1024 (NIST FIPS 203).
+ * Keys are managed by TeeKeyManagerService for enhanced security.
  *
  * Architecture (Multi-Recipient):
  * 1. Client generates random AES-256 key
@@ -47,79 +47,21 @@ export interface EncryptedPayload {
 @Injectable()
 export class MlKemEncryptionService {
   private readonly logger = new Logger(MlKemEncryptionService.name);
-  private mlkem: Awaited<ReturnType<typeof createMlKem1024>> | null = null;
-  private publicKey: Uint8Array | null = null;
-  private privateKey: Uint8Array | null = null;
 
-  constructor(private readonly configService: ConfigService) {}
-
-  /**
-   * Initialize the ML-KEM instance and load keys
-   */
-  async onModuleInit() {
-    this.logger.log('Initializing ML-KEM-1024 encryption service...');
-
-    // Create ML-KEM instance
-    this.mlkem = await createMlKem1024();
-
-    // Load keys from environment
-    const publicKeyBase64 = this.configService.get<string>(
-      'ADMIN_MLKEM_PUBLIC_KEY',
-    );
-    const privateKeyBase64 = this.configService.get<string>(
-      'ADMIN_MLKEM_PRIVATE_KEY',
-    );
-
-    if (!publicKeyBase64 || !privateKeyBase64) {
-      this.logger.warn(
-        'ML-KEM keys not configured. Run: pnpm ts-node scripts/generate-admin-keypair.ts',
-      );
-      return;
-    }
-
-    try {
-      this.publicKey = Buffer.from(publicKeyBase64, 'base64');
-      this.privateKey = Buffer.from(privateKeyBase64, 'base64');
-
-      // Validate key sizes
-      if (this.publicKey.length !== 1568) {
-        throw new Error(
-          `Invalid ML-KEM-1024 public key size: ${this.publicKey.length} (expected 1568)`,
-        );
-      }
-      if (this.privateKey.length !== 3168) {
-        throw new Error(
-          `Invalid ML-KEM-1024 private key size: ${this.privateKey.length} (expected 3168)`,
-        );
-      }
-
-      this.logger.log('✅ ML-KEM-1024 keys loaded successfully');
-      this.logger.log(
-        `Public key: ${publicKeyBase64.substring(0, 32)}... (${this.publicKey.length} bytes)`,
-      );
-    } catch (error) {
-      if (process.env.NODE_ENV !== 'test') {
-        this.logger.error('Failed to load ML-KEM keys:', error);
-      }
-      throw error;
-    }
-  }
+  constructor(private readonly keyManager: TeeKeyManagerService) {}
 
   /**
    * Get the admin's public key for client-side encryption
    */
   getPublicKey(): string | null {
-    if (!this.publicKey) {
-      return null;
-    }
-    return Buffer.from(this.publicKey).toString('base64');
+    return this.keyManager.getPublicKey();
   }
 
   /**
    * Check if encryption is available
    */
   isAvailable(): boolean {
-    return this.mlkem !== null && this.privateKey !== null;
+    return this.keyManager.isAvailable();
   }
 
   /**
@@ -129,15 +71,17 @@ export class MlKemEncryptionService {
    * @returns Decrypted plaintext
    */
   decryptMultiRecipient(payload: MultiRecipientEncryptedPayload): string {
-    if (!this.mlkem || !this.privateKey || !this.publicKey) {
+    const mlkem = this.keyManager.getMlKem();
+    const privateKey = this.keyManager.getPrivateKey();
+    const publicKey = this.keyManager.getPublicKeyBytes();
+
+    if (!mlkem || !privateKey || !publicKey) {
       throw new Error('ML-KEM encryption not initialized');
     }
 
     try {
       // Find the recipient entry for this server's public key
-      const serverPublicKeyBase64 = Buffer.from(this.publicKey).toString(
-        'base64',
-      );
+      const serverPublicKeyBase64 = Buffer.from(publicKey).toString('base64');
       const recipientEntry = payload.recipients.find(
         (r) => r.publicKey === serverPublicKeyBase64,
       );
@@ -166,7 +110,7 @@ export class MlKemEncryptionService {
       const encryptedAesKey = combinedCiphertext.subarray(kemCiphertextLength);
 
       // Decapsulate to recover shared secret
-      const sharedSecret = this.mlkem.decap(kemCiphertext, this.privateKey);
+      const sharedSecret = mlkem.decap(kemCiphertext, privateKey);
 
       // XOR-decrypt the AES key using the first 32 bytes of shared secret
       const kek = sharedSecret.subarray(0, 32);
@@ -210,7 +154,10 @@ export class MlKemEncryptionService {
    * @deprecated Use decryptMultiRecipient for new implementations
    */
   decrypt(payload: EncryptedPayload): string {
-    if (!this.mlkem || !this.privateKey) {
+    const mlkem = this.keyManager.getMlKem();
+    const privateKey = this.keyManager.getPrivateKey();
+
+    if (!mlkem || !privateKey) {
       throw new Error('ML-KEM encryption not initialized');
     }
 
@@ -229,7 +176,7 @@ export class MlKemEncryptionService {
       }
 
       // Decapsulate to recover shared secret
-      const sharedSecret = this.mlkem.decap(ciphertext, this.privateKey);
+      const sharedSecret = mlkem.decap(ciphertext, privateKey);
 
       // Decrypt data with AES-256-GCM
       const decipher = crypto.createDecipheriv('aes-256-gcm', sharedSecret, iv);
@@ -256,13 +203,16 @@ export class MlKemEncryptionService {
    * In production, encryption should happen on the client side
    */
   encrypt(plaintext: string): EncryptedPayload {
-    if (!this.mlkem || !this.publicKey) {
+    const mlkem = this.keyManager.getMlKem();
+    const publicKey = this.keyManager.getPublicKeyBytes();
+
+    if (!mlkem || !publicKey) {
       throw new Error('ML-KEM encryption not initialized');
     }
 
     try {
       // Encapsulate with public key to generate shared secret
-      const [ciphertext, sharedSecret] = this.mlkem.encap(this.publicKey);
+      const [ciphertext, sharedSecret] = mlkem.encap(publicKey);
 
       // Generate random IV
       const iv = crypto.randomBytes(12); // 96-bit IV for GCM

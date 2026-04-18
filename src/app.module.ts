@@ -3,7 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { SecretsService } from './config/secrets.service';
-import { AttestationController } from './attestation/attestation.controller';
+import { AttestationModule } from './attestation/attestation.module';
 import { TeePlatformService } from './attestation/tee-platform.service';
 import { HealthController } from './health/health.controller';
 import { validateEnvironment } from './config/env.validation';
@@ -32,10 +32,11 @@ import { RequestSanitizerMiddleware } from './middleware/request-sanitizer.middl
         limit: process.env.NODE_ENV === 'production' ? 10 : 100,
       },
     ]),
+    AttestationModule,
     AuthModule,
     ZkApiModule,
   ],
-  controllers: [AttestationController, HealthController],
+  controllers: [HealthController],
   providers: [
     SecretsService,
     TeePlatformService,

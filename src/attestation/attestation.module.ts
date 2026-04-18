@@ -1,0 +1,18 @@
+/**
+ * Attestation Module
+ *
+ * Provides cross-platform TEE attestation with report_data binding
+ * Manages TEE-generated ML-KEM keys for quantum-resistant encryption
+ */
+
+import { Module } from '@nestjs/common';
+import { AttestationController } from './attestation.controller';
+import { AttestationService } from './attestation.service';
+import { TeeKeyManagerService } from './tee-key-manager.service';
+
+@Module({
+  controllers: [AttestationController],
+  providers: [AttestationService, TeeKeyManagerService],
+  exports: [AttestationService, TeeKeyManagerService],
+})
+export class AttestationModule {}

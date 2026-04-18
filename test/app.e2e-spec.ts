@@ -12,6 +12,9 @@ describe('Application (e2e)', () => {
     process.env.NODE_ENV = 'test';
     process.env.KMS_URL = 'http://localhost:3001';
     process.env.DATA_DIR = ':memory:';
+    // Set ML-KEM keys for attestation controller
+    process.env.ADMIN_MLKEM_PUBLIC_KEY = Buffer.alloc(1568).toString('base64');
+    process.env.ADMIN_MLKEM_PRIVATE_KEY = Buffer.alloc(3168).toString('base64');
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -62,25 +65,35 @@ describe('Application (e2e)', () => {
   });
 
   describe('Attestation Endpoints (e2e)', () => {
-    it('/attestation (GET) - should return attestation report', () => {
+    it('/attestation (GET) - should return attestation quote', () => {
       return request(app.getHttpServer())
         .get('/attestation')
         .expect(200)
         .expect((res) => {
           expect(res.body).toHaveProperty('platform');
-          expect(res.body).toHaveProperty('report');
+          expect(res.body).toHaveProperty('quote');
+          expect(res.body).toHaveProperty('reportData');
           expect(res.body).toHaveProperty('measurement');
           expect(res.body).toHaveProperty('timestamp');
           expect(res.body).toHaveProperty('instructions');
 
           // Verify platform is one of the expected values
-          expect(['amd-sev-snp', 'intel-tdx', 'aws-nitro', 'none']).toContain(
-            (res.body as { platform: string }).platform,
+          expect([
+            'phala',
+            'amd-sev-snp',
+            'intel-tdx',
+            'aws-nitro',
+            'mock',
+          ]).toContain((res.body as { platform: string }).platform);
+
+          // Verify quote is base64 encoded
+          expect((res.body as { quote: string }).quote).toMatch(
+            /^[A-Za-z0-9+/]+=*$/,
           );
 
-          // Verify report is base64 encoded
-          expect((res.body as { report: string }).report).toMatch(
-            /^[A-Za-z0-9+/]+=*$/,
+          // Verify reportData is hex-encoded (128 chars = 64 bytes)
+          expect((res.body as { reportData: string }).reportData).toMatch(
+            /^[0-9a-f]{128}$/i,
           );
 
           // Verify timestamp format
@@ -101,6 +114,9 @@ describe('Application (e2e)', () => {
           };
 
           switch (platform) {
+            case 'phala':
+              expect(instructions).toContain('Phala');
+              break;
             case 'amd-sev-snp':
               expect(instructions).toContain('SEV-SNP');
               break;
@@ -110,7 +126,7 @@ describe('Application (e2e)', () => {
             case 'aws-nitro':
               expect(instructions).toContain('Nitro');
               break;
-            case 'none':
+            case 'mock':
               expect(instructions).toContain('WARNING');
               expect(instructions).toContain('MOCK');
               break;
@@ -220,7 +236,9 @@ describe('Application (e2e)', () => {
 
       responses.forEach((res) => {
         expect(res.body).toHaveProperty('platform');
-        expect(res.body).toHaveProperty('report');
+        expect(res.body).toHaveProperty('quote');
+        expect(res.body).toHaveProperty('reportData');
+        expect(res.body).toHaveProperty('measurement');
       });
     });
   });
