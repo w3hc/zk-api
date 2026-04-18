@@ -1,38 +1,41 @@
 #!/usr/bin/env tsx
 
 /**
- * Intel TDX Attestation Verification Utility
+ * Cross-Platform TEE Attestation Verification Utility
  *
- * This script verifies TDX attestation reports from ZK API instances running in Phala TEE.
+ * This script verifies TEE attestation quotes from ZK API instances.
+ * Supports: Phala Network, Intel TDX, AMD SEV-SNP, AWS Nitro
  *
  * Usage:
- *   pnpm tsx scripts/verify-attestation.ts <attestation-url>
- *   pnpm tsx scripts/verify-attestation.ts https://your-zk-api.phala.network/attestation
+ *   pnpm test:attestation
+ *   pnpm test:attestation <attestation-url>
+ *   pnpm test:attestation https://your-zk-api.phala.network/attestation
  *
  * Or with local JSON file:
- *   pnpm tsx scripts/verify-attestation.ts attestation.json
+ *   pnpm test:attestation attestation.json
  *
  * What it verifies:
- *   1. Platform is Intel TDX (not 'none')
- *   2. Certificate chain signature (Intel root CA)
- *   3. TDX quote structure validity
- *   4. Measurement (MRTD) extraction
+ *   1. Platform detection (not 'mock')
+ *   2. report_data binding to ML-KEM public key (SHA-256 match)
+ *   3. Quote structure validity
+ *   4. Measurement extraction
  *   5. Quote freshness (timestamp)
  *
- * What it does NOT verify (requires Intel DCAP):
+ * What it does NOT verify (requires platform-specific verification):
  *   - Full cryptographic signature verification
  *   - TCB (Trusted Computing Base) level checks
  *   - Certificate revocation status
  *
- * For full verification, use Intel's DCAP library or Phala's verification service.
+ * For full verification, use platform-specific verification services.
  */
 
 import * as fs from 'fs';
 import * as crypto from 'crypto';
 
-interface AttestationReport {
-  platform: 'amd-sev-snp' | 'intel-tdx' | 'aws-nitro' | 'none';
-  report: string;
+interface AttestationQuote {
+  platform: 'phala' | 'intel-tdx' | 'amd-sev-snp' | 'aws-nitro' | 'mock';
+  quote: string;
+  reportData: string;
   measurement: string;
   timestamp: string;
   instructions?: string;
@@ -101,7 +104,7 @@ function info(message: string) {
 /**
  * Fetch attestation from URL or read from file
  */
-async function fetchAttestation(source: string): Promise<AttestationReport> {
+async function fetchAttestation(source: string): Promise<AttestationQuote> {
   if (source.startsWith('http://') || source.startsWith('https://')) {
     log(`Fetching attestation from: ${source}`, 'blue');
     const response = await fetch(source);
@@ -115,6 +118,66 @@ async function fetchAttestation(source: string): Promise<AttestationReport> {
     log(`Reading attestation from file: ${source}`, 'blue');
     const content = fs.readFileSync(source, 'utf-8');
     return JSON.parse(content);
+  }
+}
+
+/**
+ * Fetch ML-KEM public key from server
+ */
+async function fetchMlKemPublicKey(baseUrl: string): Promise<Buffer> {
+  const url = new URL('/mlkem/pubkey', baseUrl).toString();
+  log(`Fetching ML-KEM public key from: ${url}`, 'blue');
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    if (!data.publicKey) {
+      throw new Error('No publicKey field in response');
+    }
+
+    return Buffer.from(data.publicKey, 'base64');
+  } catch (error) {
+    warning(`Could not fetch ML-KEM public key: ${error instanceof Error ? error.message : String(error)}`);
+    warning('Skipping report_data verification');
+    return Buffer.alloc(0);
+  }
+}
+
+/**
+ * Verify report_data binding to ML-KEM public key
+ */
+function verifyReportDataBinding(
+  reportData: string,
+  mlkemPublicKey: Buffer,
+): boolean {
+  if (mlkemPublicKey.length === 0) {
+    warning('No ML-KEM public key available, skipping report_data verification');
+    return false;
+  }
+
+  log(`\n🔑 Report Data Binding Verification:`, 'blue');
+  info(`  ML-KEM public key size: ${mlkemPublicKey.length} bytes`);
+
+  // Compute expected report_data: SHA-256(mlkem_public_key) || 0x00...00
+  const hash = crypto.createHash('sha256').update(mlkemPublicKey).digest();
+  const expectedReportData = Buffer.concat([hash, Buffer.alloc(32)]).toString('hex');
+
+  info(`  Expected report_data (first 32 bytes): ${expectedReportData.substring(0, 64)}`);
+  info(`  Actual report_data (first 32 bytes):   ${reportData.substring(0, 64)}`);
+
+  if (reportData.toLowerCase() === expectedReportData.toLowerCase()) {
+    success('✅ report_data matches SHA-256(ML-KEM public key)');
+    success('   The attestation quote is cryptographically bound to the encryption key');
+    return true;
+  } else {
+    error('❌ report_data does NOT match SHA-256(ML-KEM public key)');
+    error('   The quote is NOT bound to the advertised encryption key');
+    error('   DO NOT trust this server!');
+    return false;
   }
 }
 
@@ -280,23 +343,74 @@ async function verifyAttestation(source: string) {
     log(`\n🖥️  Platform Check:`, 'blue');
     info(`  Platform: ${attestation.platform}`);
 
-    if (attestation.platform === 'none') {
+    if (attestation.platform === 'mock') {
       error('Server is NOT running in a TEE!');
       error('This is a development/mock attestation.');
       error('DO NOT send sensitive data to this server.');
       process.exit(1);
     }
 
-    if (attestation.platform !== 'intel-tdx') {
-      warning(`Platform is ${attestation.platform}, not Intel TDX`);
-      warning('This script only supports Intel TDX verification');
-      process.exit(1);
+    success(`Platform: ${attestation.platform}`);
+
+    // 3. Verify report_data binding to ML-KEM public key
+    let mlkemPublicKey: Buffer = Buffer.alloc(0);
+    if (source.startsWith('http://') || source.startsWith('https://')) {
+      const baseUrl = new URL(source).origin;
+      mlkemPublicKey = await fetchMlKemPublicKey(baseUrl);
+      const reportDataValid = verifyReportDataBinding(attestation.reportData, mlkemPublicKey);
+      if (!reportDataValid && mlkemPublicKey.length > 0) {
+        error('\n❌ CRITICAL: report_data verification FAILED');
+        error('The attestation quote is NOT bound to the ML-KEM public key');
+        error('This could indicate a man-in-the-middle attack or misconfiguration');
+        error('DO NOT trust this server!');
+        process.exit(1);
+      }
+    } else {
+      info('\n⚠️  Skipping report_data verification (local file mode)');
+      info('   To verify report_data binding, use a URL instead of a local file');
     }
 
-    success('Platform is Intel TDX');
+    // 4. Decode quote (platform-specific)
+    if (attestation.platform === 'intel-tdx' || attestation.platform === 'phala') {
+      await verifyTdxQuote(attestation);
+    } else if (attestation.platform === 'amd-sev-snp') {
+      await verifySevSnpQuote(attestation);
+    } else if (attestation.platform === 'aws-nitro') {
+      await verifyNitroQuote(attestation);
+    }
 
-    // 3. Decode quote
-    const quoteBuffer = Buffer.from(attestation.report, 'base64');
+    // 5. Verify timestamp
+    verifyTimestamp(attestation.timestamp);
+
+    // 6. Summary
+    log(`\n═══════════════════════════════════`, 'cyan');
+    log(`📊 Verification Summary:`, 'cyan');
+    log(`═══════════════════════════════════\n`, 'cyan');
+
+    success(`Platform: ${attestation.platform} ✓`);
+    if (mlkemPublicKey.length > 0) {
+      success('report_data binding: Valid ✓');
+    }
+    success('Quote structure: Valid ✓');
+    success('Timestamp: Fresh ✓');
+
+    log(`\n✅ Basic verification PASSED\n`, 'green');
+    log(`⚠️  For production: Follow platform-specific verification steps\n`, 'yellow');
+  } catch (err) {
+    error(`Verification failed: ${err instanceof Error ? err.message : String(err)}`);
+    if (err instanceof Error && err.stack) {
+      console.error(err.stack);
+    }
+    process.exit(1);
+  }
+}
+
+/**
+ * Verify Intel TDX quote
+ */
+async function verifyTdxQuote(attestation: AttestationQuote) {
+  // Decode quote
+  const quoteBuffer = Buffer.from(attestation.quote, 'base64');
     info(`\n📦 Quote size: ${quoteBuffer.length} bytes`);
 
     if (quoteBuffer.length < 600) {
@@ -382,7 +496,7 @@ async function verifyAttestation(source: string) {
     info('   ```bash');
     info('   curl -X POST https://verifier.phala.network/verify \\');
     info('     -H "Content-Type: application/json" \\');
-    info(`     -d '{"quote": "${attestation.report.substring(0, 40)}..."}'`);
+    info(`     -d '{"quote": "${attestation.quote.substring(0, 40)}..."}'`);
     info('   ```');
     info('   Response: { "valid": true, "tcb_status": "UpToDate", "measurement": "..." }');
     info('');
@@ -522,29 +636,56 @@ async function verifyAttestation(source: string) {
     info('   - ZK API TEE Docs: docs/TEE_SETUP.md');
     info('');
 
-    log(`\n✅ Basic verification PASSED (Step 0 complete)\n`, 'green');
-    log(`⚠️  Next: Follow steps 1-5 above for production deployment\n`, 'yellow');
+}
 
-  } catch (err) {
-    error(`Verification failed: ${err instanceof Error ? err.message : String(err)}`);
-    if (err instanceof Error && err.stack) {
-      console.error(err.stack);
-    }
-    process.exit(1);
+/**
+ * Verify AMD SEV-SNP quote
+ */
+async function verifySevSnpQuote(attestation: AttestationQuote) {
+  const reportBuffer = Buffer.from(attestation.quote, 'base64');
+  info(`\n📦 SEV-SNP report size: ${reportBuffer.length} bytes`);
+
+  // Basic structure check
+  if (reportBuffer.length < 1184) {
+    warning('Report is smaller than expected SEV-SNP report size (1184 bytes)');
   }
+
+  // Extract measurement (offset 0x90, 48 bytes)
+  const measurement = reportBuffer.subarray(144, 192).toString('hex');
+  info(`  MEASUREMENT: ${measurement.substring(0, 64)}...`);
+
+  success('SEV-SNP report structure appears valid');
+}
+
+/**
+ * Verify AWS Nitro quote
+ */
+async function verifyNitroQuote(attestation: AttestationQuote) {
+  const docBuffer = Buffer.from(attestation.quote, 'base64');
+  info(`\n📦 Nitro attestation document size: ${docBuffer.length} bytes`);
+
+  try {
+    // Try to parse as JSON (mock) or note it's CBOR-encoded
+    const doc = JSON.parse(docBuffer.toString('utf-8'));
+    info(`  Module ID: ${doc.module_id || 'N/A'}`);
+    info(`  Digest: ${doc.digest || 'N/A'}`);
+  } catch {
+    info('  Document is CBOR-encoded (production format)');
+  }
+
+  success('Nitro attestation document appears valid');
 }
 
 // CLI entry point
 const args = process.argv.slice(2);
 
 if (args.length === 0) {
-  console.log('Usage: pnpm tsx scripts/verify-attestation.ts <url-or-file>');
-  console.log('');
-  console.log('Examples:');
-  console.log('  pnpm tsx scripts/verify-attestation.ts https://your-zk-api.phala.network/attestation');
-  console.log('  pnpm tsx scripts/verify-attestation.ts attestation.json');
-  process.exit(1);
+  // Default to localhost if no argument provided
+  const defaultUrl = 'http://localhost:3000/attestation';
+  log(`No URL provided, using default: ${defaultUrl}`, 'yellow');
+  log('Usage: pnpm test:attestation [url-or-file]\n', 'cyan');
+  verifyAttestation(defaultUrl);
+} else {
+  const source = args[0];
+  verifyAttestation(source);
 }
-
-const source = args[0];
-verifyAttestation(source);

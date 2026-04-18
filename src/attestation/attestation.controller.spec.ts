@@ -1,14 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { AttestationController } from './attestation.controller';
-import { TeePlatformService } from './tee-platform.service';
+import { AttestationService } from './attestation.service';
+import { MlKemEncryptionService } from '../encryption/mlkem-encryption.service';
 
 describe('AttestationController', () => {
   let controller: AttestationController;
-  let teePlatformService: TeePlatformService;
+  let attestationService: AttestationService;
+  let mlkemService: MlKemEncryptionService;
 
-  const mockAttestationReport = {
-    platform: 'none' as const,
-    report: 'mock-report-base64',
+  const mockAttestationQuote = {
+    platform: 'mock' as const,
+    quote: 'mock-quote-base64',
+    reportData: '0'.repeat(128), // 64 bytes hex
     measurement: 'mock-measurement',
     timestamp: '2026-03-17T00:00:00.000Z',
   };
@@ -18,16 +22,34 @@ describe('AttestationController', () => {
       controllers: [AttestationController],
       providers: [
         {
-          provide: TeePlatformService,
+          provide: AttestationService,
           useValue: {
-            generateAttestationReport: jest.fn(),
+            getAttestation: jest.fn().mockResolvedValue(mockAttestationQuote),
+            getPlatform: jest.fn().mockReturnValue('mock'),
+            isInTee: jest.fn().mockReturnValue(false),
+          },
+        },
+        {
+          provide: MlKemEncryptionService,
+          useValue: {
+            getPublicKey: jest
+              .fn()
+              .mockReturnValue(Buffer.alloc(1568).toString('base64')),
+            isAvailable: jest.fn().mockReturnValue(true),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockReturnValue('mock'),
           },
         },
       ],
     }).compile();
 
     controller = module.get<AttestationController>(AttestationController);
-    teePlatformService = module.get<TeePlatformService>(TeePlatformService);
+    attestationService = module.get<AttestationService>(AttestationService);
+    mlkemService = module.get<MlKemEncryptionService>(MlKemEncryptionService);
   });
 
   it('should be defined', () => {
@@ -36,34 +58,56 @@ describe('AttestationController', () => {
 
   describe('getAttestation', () => {
     it('should return attestation with instructions for mock platform', async () => {
-      jest
-        .spyOn(teePlatformService, 'generateAttestationReport')
-        .mockResolvedValue(mockAttestationReport);
-
       const result = await controller.getAttestation();
 
-      expect(result).toHaveProperty('platform', 'none');
-      expect(result).toHaveProperty('report', 'mock-report-base64');
+      expect(result).toHaveProperty('platform', 'mock');
+      expect(result).toHaveProperty('quote', 'mock-quote-base64');
+      expect(result).toHaveProperty('reportData');
       expect(result).toHaveProperty('measurement', 'mock-measurement');
       expect(result).toHaveProperty('timestamp');
       expect(result).toHaveProperty('instructions');
       expect(result.instructions).toContain('WARNING');
       expect(result.instructions).toContain('MOCK');
-      expect(
-        jest
-          .spyOn(teePlatformService, 'generateAttestationReport')
-          .getMockImplementation(),
-      ).toBeDefined();
+    });
+
+    it('should fetch ML-KEM public key before generating attestation', async () => {
+      const getPublicKeySpy = jest.spyOn(mlkemService, 'getPublicKey');
+      const getAttestationSpy = jest.spyOn(
+        attestationService,
+        'getAttestation',
+      );
+
+      await controller.getAttestation();
+
+      expect(getPublicKeySpy).toHaveBeenCalled();
+      expect(getAttestationSpy).toHaveBeenCalledWith(expect.any(Buffer));
+    });
+
+    it('should return Phala verification instructions', async () => {
+      const phalaQuote = {
+        ...mockAttestationQuote,
+        platform: 'phala' as const,
+      };
+      jest
+        .spyOn(attestationService, 'getAttestation')
+        .mockResolvedValue(phalaQuote);
+
+      const result = await controller.getAttestation();
+
+      expect(result.platform).toBe('phala');
+      expect(result.instructions).toContain('Phala');
+      expect(result.instructions).toContain('RTMR');
+      expect(result.instructions).toContain('verifier.phala.network');
     });
 
     it('should return AMD SEV-SNP verification instructions', async () => {
-      const sevReport = {
-        ...mockAttestationReport,
+      const sevQuote = {
+        ...mockAttestationQuote,
         platform: 'amd-sev-snp' as const,
       };
       jest
-        .spyOn(teePlatformService, 'generateAttestationReport')
-        .mockResolvedValue(sevReport);
+        .spyOn(attestationService, 'getAttestation')
+        .mockResolvedValue(sevQuote);
 
       const result = await controller.getAttestation();
 
@@ -74,13 +118,13 @@ describe('AttestationController', () => {
     });
 
     it('should return Intel TDX verification instructions', async () => {
-      const tdxReport = {
-        ...mockAttestationReport,
+      const tdxQuote = {
+        ...mockAttestationQuote,
         platform: 'intel-tdx' as const,
       };
       jest
-        .spyOn(teePlatformService, 'generateAttestationReport')
-        .mockResolvedValue(tdxReport);
+        .spyOn(attestationService, 'getAttestation')
+        .mockResolvedValue(tdxQuote);
 
       const result = await controller.getAttestation();
 
@@ -92,13 +136,13 @@ describe('AttestationController', () => {
     });
 
     it('should return AWS Nitro verification instructions', async () => {
-      const nitroReport = {
-        ...mockAttestationReport,
+      const nitroQuote = {
+        ...mockAttestationQuote,
         platform: 'aws-nitro' as const,
       };
       jest
-        .spyOn(teePlatformService, 'generateAttestationReport')
-        .mockResolvedValue(nitroReport);
+        .spyOn(attestationService, 'getAttestation')
+        .mockResolvedValue(nitroQuote);
 
       const result = await controller.getAttestation();
 
@@ -108,9 +152,17 @@ describe('AttestationController', () => {
       expect(result.instructions).toContain('aws-nitro-enclaves-cose');
     });
 
-    it('should handle errors from TeePlatformService', async () => {
+    it('should throw error if ML-KEM service is not initialized', async () => {
+      jest.spyOn(mlkemService, 'getPublicKey').mockReturnValue(null);
+
+      await expect(controller.getAttestation()).rejects.toThrow(
+        'ML-KEM encryption not initialized',
+      );
+    });
+
+    it('should handle errors from AttestationService', async () => {
       jest
-        .spyOn(teePlatformService, 'generateAttestationReport')
+        .spyOn(attestationService, 'getAttestation')
         .mockRejectedValue(new Error('TEE error'));
 
       await expect(controller.getAttestation()).rejects.toThrow('TEE error');

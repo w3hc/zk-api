@@ -345,11 +345,103 @@ curl -k https://localhost:3000/zk-api/server-pubkey
 
 ---
 
+## TEE Attestation Endpoints
+
+### GET /attestation
+
+Returns a TEE attestation quote with the ML-KEM public key cryptographically bound via `report_data`. This prevents man-in-the-middle attacks where an attacker could substitute their own encryption key.
+
+**Authentication:** None (public endpoint)
+
+**Response:**
+
+```typescript
+{
+  platform: 'phala' | 'intel-tdx' | 'amd-sev-snp' | 'aws-nitro' | 'mock';
+  quote: string;              // Base64-encoded attestation quote
+  reportData: string;         // Hex-encoded SHA-256(mlkem_pubkey) || 0x00...00 (64 bytes)
+  measurement: string;        // Hex-encoded TEE measurement (MRTD/PCR0/etc.)
+  timestamp: string;          // ISO 8601 timestamp
+  instructions: string;       // Platform-specific verification instructions
+}
+```
+
+**Example Response (Phala):**
+
+```json
+{
+  "platform": "phala",
+  "quote": "AgABACsAIAAAAAA...base64...==",
+  "reportData": "a1b2c3d4e5f67890abcdef...0000000000000000000000000000000000000000000000000000000000000000",
+  "measurement": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+  "timestamp": "2026-04-18T12:00:00.000Z",
+  "instructions": "Verify this quote using Phala verification service..."
+}
+```
+
+**Security:** Clients MUST verify:
+1. `platform` is not 'mock' (real TEE required)
+2. `reportData` = `SHA-256(mlkem_public_key)` + zero padding
+3. Platform-specific quote signature (see [ATTESTATION.md](ATTESTATION.md))
+4. `timestamp` is recent (within 5 minutes)
+
+**Verification Script:**
+
+```bash
+# Automated verification
+pnpm test:attestation https://your-server/attestation
+
+# Or manually verify report_data binding
+curl https://your-server/attestation > attestation.json
+curl https://your-server/mlkem/pubkey > pubkey.json
+# See docs/ATTESTATION.md for full verification guide
+```
+
+**Documentation:**
+- [docs/ATTESTATION.md](ATTESTATION.md) - Complete verification guide
+- [docs/TEE_SETUP.md](TEE_SETUP.md) - Platform deployment guides
+
+---
+
+### GET /mlkem/pubkey
+
+Returns the server's ML-KEM-1024 public key for quantum-resistant encryption.
+
+**Authentication:** None (public endpoint)
+
+**Response:**
+
+```typescript
+{
+  publicKey: string;  // Base64-encoded ML-KEM-1024 public key (1568 bytes)
+  algorithm: 'ML-KEM-1024';
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "publicKey": "AgABACsAIAAA...base64...==",
+  "algorithm": "ML-KEM-1024"
+}
+```
+
+**Usage:**
+1. Fetch `/attestation` and verify it (see above)
+2. Verify `attestation.reportData` matches `SHA-256(this_public_key)`
+3. Only then use this public key for encryption
+
+**Documentation:**
+- [docs/MLKEM.md](MLKEM.md) - ML-KEM encryption guide
+
+---
+
 ## Available for Future Implementation
 
 The following endpoints have been removed from the API but their underlying utilities remain in the codebase:
 
-- **ML-KEM Encryption Endpoints** (`/secret/attestation`, `/secret/store`, `/secret/access`) - The `MlKemEncryptionService` is still available in `src/encryption/` for future implementation
+- **ML-KEM Encrypted Storage Endpoints** (`/secret/store`, `/secret/access`) - The `MlKemEncryptionService` is still available in `src/encryption/` for future implementation
 - **Authentication Endpoint** (`POST /auth/nonce`) - The SIWE authentication service and guard are still available in `src/auth/` for future implementation
 
 These can be re-enabled by creating new controllers that use the existing services.

@@ -765,20 +765,74 @@ Configure your Key Management Service to release secrets only after attestation 
 
 ```bash
 # Check if attestation is working
-curl -k https://your-server:443/secret/attestation | jq .
+curl -k https://your-server:443/attestation | jq .
 
 # Expected response:
 # {
-#   "platform": "amd-sev-snp" | "intel-tdx" | "aws-nitro",
-#   "report": "base64-encoded-attestation",
+#   "platform": "phala" | "intel-tdx" | "amd-sev-snp" | "aws-nitro",
+#   "quote": "base64-encoded-attestation-quote",
+#   "reportData": "hex-sha256-of-mlkem-pubkey-padded-to-128-chars",
 #   "measurement": "hex-measurement-hash",
-#   "timestamp": "2026-03-17T..."
+#   "timestamp": "2026-03-17T...",
+#   "instructions": "Platform-specific verification instructions..."
 # }
 
-# If platform is "none", you're NOT in a TEE
+# If platform is "mock", you're NOT in a TEE
 ```
 
-### 2. Verify TLS Termination Inside TEE
+### 2. Verify report_data Binding (Critical Security Check)
+
+The attestation quote now cryptographically binds the ML-KEM public key to the TEE measurement using the `report_data` field. This prevents man-in-the-middle attacks where an attacker could serve their own encryption key while replaying a valid TEE attestation.
+
+**Automated Verification:**
+
+```bash
+# Run the verification script (verifies report_data binding automatically)
+pnpm test:attestation https://your-server:443/attestation
+```
+
+**Manual Verification:**
+
+```bash
+# 1. Fetch the attestation quote
+curl -k https://your-server:443/attestation > attestation.json
+
+# 2. Fetch the ML-KEM public key
+curl -k https://your-server:443/mlkem/pubkey > pubkey.json
+
+# 3. Extract values
+REPORT_DATA=$(cat attestation.json | jq -r '.reportData')
+PUBKEY=$(cat pubkey.json | jq -r '.publicKey')
+
+# 4. Compute expected report_data: SHA-256(pubkey) || 0x00...00 (64 bytes total)
+EXPECTED=$(echo -n "$PUBKEY" | base64 -d | sha256sum | cut -d' ' -f1)
+EXPECTED_PADDED="${EXPECTED}$(printf '0%.0s' {1..64})"  # Pad to 128 hex chars (64 bytes)
+
+# 5. Verify they match
+if [ "$REPORT_DATA" = "$EXPECTED_PADDED" ]; then
+  echo "✅ report_data matches ML-KEM public key - Quote is properly bound"
+else
+  echo "❌ report_data MISMATCH - DO NOT TRUST THIS SERVER"
+  echo "Expected: $EXPECTED_PADDED"
+  echo "Got:      $REPORT_DATA"
+  exit 1
+fi
+```
+
+**What This Proves:**
+- The attestation quote was generated with knowledge of the ML-KEM public key
+- An attacker cannot substitute their own key and replay a valid quote (hash won't match)
+- The encryption key is cryptographically bound to the TEE measurement
+
+**Security Impact:**
+Without `report_data` binding, an attacker could:
+1. Serve their own ML-KEM public key (to decrypt your secrets)
+2. Replay a valid TEE attestation from the real server
+3. Client thinks it's secure, but secrets are encrypted to attacker's key
+
+With `report_data` binding, this attack is cryptographically impossible.
+
+### 3. Verify TLS Termination Inside TEE
 
 ```bash
 # Confirm TLS private key never touched the host
@@ -789,7 +843,7 @@ sudo find /var /tmp /root -name "tls.key" 2>/dev/null
 # Should return no results
 ```
 
-### 3. Test Health Endpoints
+### 4. Test Health Endpoints
 
 ```bash
 # Health check
@@ -802,7 +856,7 @@ curl -k https://your-server:443/health/ready
 curl -k https://your-server:443/health/live
 ```
 
-### 4. Verify Logging is Sanitized
+### 5. Verify Logging is Sanitized
 
 ```bash
 # Check application logs - should NOT contain sensitive data
