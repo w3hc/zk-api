@@ -1,17 +1,21 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AttestationService } from './attestation.service';
-import { MlKemEncryptionService } from '../encryption/mlkem-encryption.service';
 import { TeePlatform } from './attestation.types';
 
 /**
  * Attestation controller.
  * Provides cryptographic proof of the code running inside the TEE.
- * Binds the ML-KEM public key to the attestation quote via report_data.
+ * Binds the TEE-generated ML-KEM public key to the attestation quote via report_data.
+ *
+ * Security model:
+ * - ML-KEM key pair is generated inside the TEE
+ * - Private key is sealed and never leaves the TEE
+ * - Public key is bound to attestation via report_data
  *
  * Clients should:
  * 1. Fetch the attestation quote from this endpoint
- * 2. Fetch the ML-KEM public key from /mlkem/pubkey (or extract from quote)
+ * 2. Fetch the ML-KEM public key from /mlkem/pubkey
  * 3. Verify report_data = SHA-256(mlkem_public_key) || 0x00...00
  * 4. Verify the quote signature with the TEE platform's verification service
  * 5. Compare the measurement hash against the published value
@@ -20,13 +24,11 @@ import { TeePlatform } from './attestation.types';
 @ApiTags('Attestation')
 @Controller('attestation')
 export class AttestationController {
-  constructor(
-    private readonly attestationService: AttestationService,
-    private readonly mlkemService: MlKemEncryptionService,
-  ) {}
+  constructor(private readonly attestationService: AttestationService) {}
 
   /**
    * Returns the TEE attestation quote with bound ML-KEM public key.
+   * The ML-KEM key pair is generated inside the TEE, and the private key never leaves it.
    * Clients must verify this cryptographically before trusting the service.
    * In non-TEE environments, returns a mock quote with platform='mock'.
    *
@@ -69,17 +71,8 @@ export class AttestationController {
     description: 'Failed to generate attestation quote',
   })
   async getAttestation() {
-    // Get ML-KEM public key
-    const publicKeyBase64 = this.mlkemService.getPublicKey();
-    if (!publicKeyBase64) {
-      throw new Error('ML-KEM encryption not initialized');
-    }
-
-    const publicKeyBytes = Buffer.from(publicKeyBase64, 'base64');
-
-    // Generate attestation with bound report_data
-    const attestation =
-      await this.attestationService.getAttestation(publicKeyBytes);
+    // Generate attestation with TEE-generated key bound to report_data
+    const attestation = await this.attestationService.getAttestation();
 
     return {
       ...attestation,

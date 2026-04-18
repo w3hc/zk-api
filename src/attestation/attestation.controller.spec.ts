@@ -2,12 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { AttestationController } from './attestation.controller';
 import { AttestationService } from './attestation.service';
-import { MlKemEncryptionService } from '../encryption/mlkem-encryption.service';
 
 describe('AttestationController', () => {
   let controller: AttestationController;
   let attestationService: AttestationService;
-  let mlkemService: MlKemEncryptionService;
 
   const mockAttestationQuote = {
     platform: 'mock' as const,
@@ -30,15 +28,6 @@ describe('AttestationController', () => {
           },
         },
         {
-          provide: MlKemEncryptionService,
-          useValue: {
-            getPublicKey: jest
-              .fn()
-              .mockReturnValue(Buffer.alloc(1568).toString('base64')),
-            isAvailable: jest.fn().mockReturnValue(true),
-          },
-        },
-        {
           provide: ConfigService,
           useValue: {
             get: jest.fn().mockReturnValue('mock'),
@@ -49,7 +38,6 @@ describe('AttestationController', () => {
 
     controller = module.get<AttestationController>(AttestationController);
     attestationService = module.get<AttestationService>(AttestationService);
-    mlkemService = module.get<MlKemEncryptionService>(MlKemEncryptionService);
   });
 
   it('should be defined', () => {
@@ -70,8 +58,7 @@ describe('AttestationController', () => {
       expect(result.instructions).toContain('MOCK');
     });
 
-    it('should fetch ML-KEM public key before generating attestation', async () => {
-      const getPublicKeySpy = jest.spyOn(mlkemService, 'getPublicKey');
+    it('should call attestation service to generate attestation', async () => {
       const getAttestationSpy = jest.spyOn(
         attestationService,
         'getAttestation',
@@ -79,8 +66,7 @@ describe('AttestationController', () => {
 
       await controller.getAttestation();
 
-      expect(getPublicKeySpy).toHaveBeenCalled();
-      expect(getAttestationSpy).toHaveBeenCalledWith(expect.any(Buffer));
+      expect(getAttestationSpy).toHaveBeenCalled();
     });
 
     it('should return Phala verification instructions', async () => {
@@ -150,14 +136,6 @@ describe('AttestationController', () => {
       expect(result.instructions).toContain('Nitro');
       expect(result.instructions).toContain('PCR0');
       expect(result.instructions).toContain('aws-nitro-enclaves-cose');
-    });
-
-    it('should throw error if ML-KEM service is not initialized', async () => {
-      jest.spyOn(mlkemService, 'getPublicKey').mockReturnValue(null);
-
-      await expect(controller.getAttestation()).rejects.toThrow(
-        'ML-KEM encryption not initialized',
-      );
     });
 
     it('should handle errors from AttestationService', async () => {

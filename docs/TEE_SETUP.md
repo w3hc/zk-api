@@ -782,7 +782,20 @@ curl -k https://your-server:443/attestation | jq .
 
 ### 2. Verify report_data Binding (Critical Security Check)
 
-The attestation quote now cryptographically binds the ML-KEM public key to the TEE measurement using the `report_data` field. This prevents man-in-the-middle attacks where an attacker could serve their own encryption key while replaying a valid TEE attestation.
+The attestation quote cryptographically binds the **TEE-generated ML-KEM public key** to the TEE measurement using the `report_data` field. This provides two critical security guarantees:
+
+1. **Key Origin**: The ML-KEM key pair was generated **inside the TEE**, not loaded from environment variables
+2. **MITM Prevention**: An attacker cannot serve their own encryption key while replaying a valid TEE attestation
+
+**How it works:**
+- On first startup in a TEE environment, ZK API generates a new ML-KEM-1024 key pair inside the secure enclave
+- The private key is sealed using platform-specific mechanisms and never leaves the TEE
+- The public key is bound to the attestation quote via `report_data = SHA-256(public_key) || 0x00...00`
+- Clients verify this binding to ensure they're encrypting to a TEE-sealed private key
+
+**Security comparison:**
+- ❌ **Old approach**: Keys in `ADMIN_MLKEM_PRIVATE_KEY` environment variable → Operator can access private key
+- ✅ **New approach**: Keys generated in TEE → Private key never known to anyone, cryptographically proven via attestation
 
 **Automated Verification:**
 

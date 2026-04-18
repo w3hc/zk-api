@@ -4,11 +4,13 @@ import {
   MlKemEncryptionService,
   MultiRecipientEncryptedPayload,
 } from './mlkem-encryption.service';
+import { TeeKeyManagerService } from '../attestation/tee-key-manager.service';
 import { createMlKem1024 } from 'mlkem';
 import * as crypto from 'crypto';
 
 describe('MlKemEncryptionService', () => {
   let service: MlKemEncryptionService;
+  let keyManager: TeeKeyManagerService;
   let mlkem: Awaited<ReturnType<typeof createMlKem1024>>;
   let serverPublicKey: Uint8Array;
   let serverPrivateKey: Uint8Array;
@@ -23,6 +25,7 @@ describe('MlKemEncryptionService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MlKemEncryptionService,
+        TeeKeyManagerService,
         {
           provide: ConfigService,
           useValue: {
@@ -33,6 +36,9 @@ describe('MlKemEncryptionService', () => {
               if (key === 'ADMIN_MLKEM_PRIVATE_KEY') {
                 return Buffer.from(serverPrivateKey).toString('base64');
               }
+              if (key === 'TEE_PLATFORM') {
+                return 'mock';
+              }
               return null;
             }),
           },
@@ -41,7 +47,8 @@ describe('MlKemEncryptionService', () => {
     }).compile();
 
     service = module.get<MlKemEncryptionService>(MlKemEncryptionService);
-    await service.onModuleInit();
+    keyManager = module.get<TeeKeyManagerService>(TeeKeyManagerService);
+    await keyManager.onModuleInit();
   });
 
   describe('onModuleInit', () => {
@@ -57,6 +64,7 @@ describe('MlKemEncryptionService', () => {
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           MlKemEncryptionService,
+          TeeKeyManagerService,
           {
             provide: ConfigService,
             useValue: {
@@ -69,7 +77,10 @@ describe('MlKemEncryptionService', () => {
       const testService = module.get<MlKemEncryptionService>(
         MlKemEncryptionService,
       );
-      await testService.onModuleInit();
+      const testKeyManager =
+        module.get<TeeKeyManagerService>(TeeKeyManagerService);
+
+      await testKeyManager.onModuleInit();
 
       expect(testService.isAvailable()).toBe(false);
       expect(testService.getPublicKey()).toBeNull();
@@ -80,6 +91,7 @@ describe('MlKemEncryptionService', () => {
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           MlKemEncryptionService,
+          TeeKeyManagerService,
           {
             provide: ConfigService,
             useValue: {
@@ -90,6 +102,9 @@ describe('MlKemEncryptionService', () => {
                 if (key === 'ADMIN_MLKEM_PRIVATE_KEY') {
                   return Buffer.from(serverPrivateKey).toString('base64');
                 }
+                if (key === 'TEE_PLATFORM') {
+                  return 'mock';
+                }
                 return null;
               }),
             },
@@ -97,11 +112,10 @@ describe('MlKemEncryptionService', () => {
         ],
       }).compile();
 
-      const testService = module.get<MlKemEncryptionService>(
-        MlKemEncryptionService,
-      );
+      const testKeyManager =
+        module.get<TeeKeyManagerService>(TeeKeyManagerService);
 
-      await expect(testService.onModuleInit()).rejects.toThrow(
+      await expect(testKeyManager.onModuleInit()).rejects.toThrow(
         /Invalid ML-KEM-1024 public key size/,
       );
     });
@@ -111,6 +125,7 @@ describe('MlKemEncryptionService', () => {
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           MlKemEncryptionService,
+          TeeKeyManagerService,
           {
             provide: ConfigService,
             useValue: {
@@ -121,6 +136,9 @@ describe('MlKemEncryptionService', () => {
                 if (key === 'ADMIN_MLKEM_PRIVATE_KEY') {
                   return invalidPrivateKey.toString('base64');
                 }
+                if (key === 'TEE_PLATFORM') {
+                  return 'mock';
+                }
                 return null;
               }),
             },
@@ -128,11 +146,10 @@ describe('MlKemEncryptionService', () => {
         ],
       }).compile();
 
-      const testService = module.get<MlKemEncryptionService>(
-        MlKemEncryptionService,
-      );
+      const testKeyManager =
+        module.get<TeeKeyManagerService>(TeeKeyManagerService);
 
-      await expect(testService.onModuleInit()).rejects.toThrow(
+      await expect(testKeyManager.onModuleInit()).rejects.toThrow(
         /Invalid ML-KEM-1024 private key size/,
       );
     });
@@ -306,6 +323,7 @@ describe('MlKemEncryptionService', () => {
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           MlKemEncryptionService,
+          TeeKeyManagerService,
           {
             provide: ConfigService,
             useValue: {
@@ -318,7 +336,10 @@ describe('MlKemEncryptionService', () => {
       const uninitializedService = module.get<MlKemEncryptionService>(
         MlKemEncryptionService,
       );
-      await uninitializedService.onModuleInit();
+      const uninitKeyManager =
+        module.get<TeeKeyManagerService>(TeeKeyManagerService);
+
+      await uninitKeyManager.onModuleInit();
 
       const dummyPayload = {
         ciphertext: 'dummy',
@@ -336,6 +357,7 @@ describe('MlKemEncryptionService', () => {
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           MlKemEncryptionService,
+          TeeKeyManagerService,
           {
             provide: ConfigService,
             useValue: {
@@ -348,7 +370,10 @@ describe('MlKemEncryptionService', () => {
       const uninitializedService = module.get<MlKemEncryptionService>(
         MlKemEncryptionService,
       );
-      await uninitializedService.onModuleInit();
+      const uninitKeyManager =
+        module.get<TeeKeyManagerService>(TeeKeyManagerService);
+
+      await uninitKeyManager.onModuleInit();
 
       expect(() => uninitializedService.encrypt('test')).toThrow(
         'ML-KEM encryption not initialized',
@@ -361,6 +386,7 @@ describe('MlKemEncryptionService', () => {
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           MlKemEncryptionService,
+          TeeKeyManagerService,
           {
             provide: ConfigService,
             useValue: {
@@ -373,7 +399,10 @@ describe('MlKemEncryptionService', () => {
       const uninitializedService = module.get<MlKemEncryptionService>(
         MlKemEncryptionService,
       );
-      await uninitializedService.onModuleInit();
+      const uninitKeyManager =
+        module.get<TeeKeyManagerService>(TeeKeyManagerService);
+
+      await uninitKeyManager.onModuleInit();
 
       const dummyPayload = {
         recipients: [],

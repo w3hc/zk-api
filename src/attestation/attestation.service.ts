@@ -2,7 +2,13 @@
  * Attestation Service
  *
  * Orchestrates cross-platform TEE attestation with report_data binding
- * Binds ML-KEM public key to attestation quotes using SHA-256 hash
+ * Binds TEE-generated ML-KEM public key to attestation quotes using SHA-256 hash
+ *
+ * Security model:
+ * - ML-KEM key pair is generated inside the TEE
+ * - Private key is sealed and never leaves the TEE
+ * - Public key is bound to attestation via report_data
+ * - Clients can verify: attestation → report_data → public key → encrypted messages
  */
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
@@ -15,13 +21,17 @@ import { TdxPlatform } from './platforms/tdx.platform';
 import { SevSnpPlatform } from './platforms/sev-snp.platform';
 import { NitroPlatform } from './platforms/nitro.platform';
 import { MockPlatform } from './platforms/mock.platform';
+import { TeeKeyManagerService } from './tee-key-manager.service';
 
 @Injectable()
 export class AttestationService implements OnModuleInit {
   private readonly logger = new Logger(AttestationService.name);
   private platform: ITeePlatform | null = null;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly keyManager: TeeKeyManagerService,
+  ) {}
 
   async onModuleInit() {
     // Check if TEE_PLATFORM is explicitly set in environment
@@ -97,12 +107,18 @@ export class AttestationService implements OnModuleInit {
 
   /**
    * Generate an attestation quote with embedded ML-KEM public key
-   * @param mlkemPublicKey - ML-KEM-1024 public key bytes
+   * Uses the TEE-generated public key from TeeKeyManagerService
    * @returns Platform-specific attestation quote with bound report_data
    */
-  async getAttestation(mlkemPublicKey: Buffer): Promise<AttestationQuote> {
+  async getAttestation(): Promise<AttestationQuote> {
     if (!this.platform) {
       throw new Error('Attestation service not initialized');
+    }
+
+    // Get TEE-generated public key
+    const mlkemPublicKey = this.keyManager.getPublicKeyBytes();
+    if (!mlkemPublicKey) {
+      throw new Error('ML-KEM public key not available from TEE Key Manager');
     }
 
     // Build report_data: SHA-256(mlkem_public_key) || 0x00...00

@@ -128,6 +128,10 @@ function buildReportData(mlkemPublicKey: Buffer): Buffer {
 }
 
 // When generating quote:
+// 1. ML-KEM key pair is generated INSIDE the TEE by TeeKeyManagerService
+const mlkemPublicKey = this.keyManager.getPublicKeyBytes();
+
+// 2. Public key is bound to attestation via report_data
 const reportData = buildReportData(mlkemPublicKey);
 const quote = await platform.generateQuote(reportData);
 
@@ -136,6 +140,35 @@ const quote = await platform.generateQuote(reportData);
 //                    + "0000000000..." (zero padding)
 //                    = 128 hex characters (64 bytes)
 ```
+
+### Security: TEE-Generated Keys
+
+**Critical security feature:** The ML-KEM key pair is **generated inside the TEE**, not loaded from environment variables.
+
+```typescript
+// src/attestation/tee-key-manager.service.ts
+private async initializeTeeKeys() {
+  // Generate key pair INSIDE the TEE
+  const [publicKey, privateKey] = this.mlkem.generateKeyPair();
+
+  // Seal private key using platform-specific mechanisms
+  const sealedPrivateKey = await this.sealPrivateKey(privateKey);
+  await fs.writeFile(SEALED_KEY_PATH, sealedPrivateKey);
+
+  // Private key NEVER leaves the TEE
+  // Only the public key is exported for client use
+}
+```
+
+**Why this matters:**
+- ✅ **Private key never known to operator** - Generated inside the secure enclave
+- ✅ **No environment variable exposure** - Keys don't exist in deployment configs
+- ✅ **Cryptographic proof** - Attestation binds the TEE-generated public key via report_data
+- ✅ **Trustless decryption** - Only the attested TEE can decrypt messages
+
+**Trust model:**
+- **Before:** "Trust the operator not to access `ADMIN_MLKEM_PRIVATE_KEY` environment variable"
+- **After:** "Don't trust anyone - verify the private key is sealed in the TEE via attestation"
 
 ### Client Verification
 

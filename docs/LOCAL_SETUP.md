@@ -42,12 +42,16 @@ ANVIL_RPC_URL=http://127.0.0.1:8545
 # For production Ethereum mainnet (comma-separated list - API will randomly pick one):
 # ETHEREUM_RPC_URLS=https://eth.drpc.org,https://rpc.mevblocker.io/fullprivacy,https://rpc.flashbots.net,https://ethereum-rpc.publicnode.com
 
-# Optional: ML-KEM-1024 Admin Keypair (for future ML-KEM endpoints)
+# Optional: ML-KEM-1024 Admin Keypair (DEVELOPMENT ONLY - for non-TEE environments)
+# In production, keys are generated INSIDE the TEE automatically
 # ADMIN_MLKEM_PUBLIC_KEY=<your-public-key>
 # ADMIN_MLKEM_PRIVATE_KEY=<your-private-key>
 ```
 
-**Note:** ML-KEM encryption utilities are available in `src/encryption/mlkem-encryption.service.ts` but not currently exposed via endpoints.
+**Note:**
+- **Production (TEE)**: ML-KEM keys are automatically generated inside the TEE on first startup. The private key never leaves the secure enclave.
+- **Development (non-TEE)**: You can optionally provide pre-generated keys via environment variables for testing. Generate them with `pnpm ts-node scripts/generate-admin-keypair.ts`.
+- ML-KEM encryption utilities are available in `src/encryption/mlkem-encryption.service.ts` but not currently exposed via endpoints.
 
 ### 2. Generate TLS Certificates
 

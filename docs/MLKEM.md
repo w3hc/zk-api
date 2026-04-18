@@ -279,44 +279,92 @@ const plaintext = await mlkemDecrypt(
 
 ### Key Generation (Server Startup)
 
+**ZK API now uses TEE-generated keys** for enhanced security. The ML-KEM key pair is generated inside the TEE, and the private key never leaves the secure enclave.
+
 ```typescript
-// src/encryption/mlkem-encryption.service.ts
+// src/attestation/tee-key-manager.service.ts
 async onModuleInit() {
   this.mlkem = await createMlKem1024();
 
-  // Load from environment (local) or generate in TEE (production)
-  if (process.env.ADMIN_MLKEM_PRIVATE_KEY) {
-    // Development: load from .env
-    this.privateKey = Buffer.from(
-      process.env.ADMIN_MLKEM_PRIVATE_KEY,
-      'base64'
-    );
+  // Detect TEE environment
+  this.isInTee = await this.detectTeeEnvironment();
+
+  if (this.isInTee) {
+    // PRODUCTION: Generate keys INSIDE the TEE
+    await this.initializeTeeKeys();
   } else {
-    // Production: generate and seal in TEE
+    // DEVELOPMENT: Fall back to environment variables
+    this.initializeNonTeeKeys();
+  }
+}
+
+private async initializeTeeKeys() {
+  // Check if sealed keys already exist
+  const keysExist = await this.checkSealedKeysExist();
+
+  if (keysExist) {
+    // Load existing sealed keys
+    await this.loadSealedKeys();
+  } else {
+    // Generate NEW keys inside the TEE
     const [publicKey, privateKey] = this.mlkem.generateKeyPair();
+
     this.publicKey = publicKey;
     this.privateKey = privateKey;
 
-    // Seal private key in TEE hardware (Phala specific)
-    await this.sealPrivateKey(privateKey);
+    // Seal private key using platform-specific mechanisms
+    const sealedPrivateKey = await this.sealPrivateKey(privateKey);
+    await fs.writeFile(SEALED_KEY_PATH, sealedPrivateKey);
+
+    // Save public key (plaintext is OK)
+    await fs.writeFile(PUBLIC_KEY_PATH, Buffer.from(publicKey));
   }
+
+  // ✅ Private key NEVER leaves the TEE
+  // ✅ Service operator CANNOT access it
+  // ✅ Only TEE can decrypt messages
+}
+```
+
+**Security Benefits:**
+- ✅ **Private key generated inside TEE** - Never exposed to service operator
+- ✅ **Key sealing** - Private key encrypted at rest using TEE-specific mechanisms
+- ✅ **Attestation binding** - Public key cryptographically bound to TEE quote via `report_data`
+- ✅ **Backward compatible** - Falls back to environment variables in non-TEE environments
+
+**Development Mode (Non-TEE):**
+```typescript
+private initializeNonTeeKeys() {
+  // Fall back to environment variables for local development
+  const publicKeyBase64 = this.configService.get<string>('ADMIN_MLKEM_PUBLIC_KEY');
+  const privateKeyBase64 = this.configService.get<string>('ADMIN_MLKEM_PRIVATE_KEY');
+
+  this.publicKey = Buffer.from(publicKeyBase64, 'base64');
+  this.privateKey = Buffer.from(privateKeyBase64, 'base64');
+
+  this.logger.warn('⚠️  Private key is accessible in non-TEE mode!');
 }
 ```
 
 ### Attestation Response
 
-```typescript
-async getAttestation(): Promise<AttestationResponseDto> {
-  const attestation = await this.teePlatformService.generateAttestationReport();
+The attestation now includes the TEE-generated public key bound via `report_data`:
 
-  return {
-    platform: attestation.platform,      // 'phala', 'amd-sev-snp', etc.
-    report: attestation.report,          // TEE signature
-    measurement: attestation.measurement, // Code hash
-    timestamp: attestation.timestamp,
-    mlkemPublicKey: this.getPublicKey(), // For client encryption
-  };
+```typescript
+// src/attestation/attestation.service.ts
+async getAttestation(): Promise<AttestationQuote> {
+  // Get TEE-generated public key
+  const mlkemPublicKey = this.keyManager.getPublicKeyBytes();
+
+  // Bind it to attestation via report_data
+  const reportData = this.buildReportData(mlkemPublicKey);
+
+  // Generate quote with hardware signature
+  return this.platform.generateQuote(reportData);
 }
+
+// Clients verify: attestation.reportData === SHA-256(mlkemPublicKey)
+// This proves the corresponding private key is sealed in the TEE
 ```
 
 ### Phala Network Deployment
