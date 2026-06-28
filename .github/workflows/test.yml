@@ -50,7 +50,10 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Install Forge dependencies
-        run: cd contracts && forge install
+        run: |
+          cd contracts
+          forge install OpenZeppelin/openzeppelin-contracts --no-commit
+          forge install foundry-rs/forge-std --no-commit
         shell: bash
 
       - name: Build native modules
