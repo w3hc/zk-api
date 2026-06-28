@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
+import { createHash } from 'crypto';
 import { ZkApiRequestDto } from './dto/api-request.dto';
 import { ZkApiResponseDto, UsageDto } from './dto/api-response.dto';
 import { NullifierStoreService } from './nullifier-store.service';
@@ -163,7 +164,12 @@ export class ZkApiService {
     }
 
     // 4. Store nullifier to prevent reuse
-    this.nullifierStore.set(req.nullifier, req.signal);
+    // Also store payload hash for policy violation proofs
+    const payloadHash = this.hashPayload(req.payload);
+    this.nullifierStore.set(req.nullifier, {
+      ...req.signal,
+      payloadHash,
+    });
 
     // 5. Execute API request (Claude example)
     const response = await this.executeClaudeRequest(req.payload, model);
@@ -361,5 +367,14 @@ export class ZkApiService {
    */
   async getServerPublicKey(): Promise<{ x: string; y: string }> {
     return this.refundSigner.getPublicKey();
+  }
+
+  /**
+   * Hash payload for policy violation evidence
+   * Uses SHA256 to create a deterministic hash of the request payload
+   */
+  private hashPayload(payload: string): string {
+    const hash = createHash('sha256').update(payload).digest('hex');
+    return '0x' + hash;
   }
 }

@@ -7,15 +7,18 @@ import '../src/PoseidonHasher.sol';
 import '../src/WithdrawalVerifier.sol';
 import '../src/RefundRedemptionVerifier.sol';
 import '../src/DoubleSpendSlashingVerifier.sol';
+import '../src/PolicyViolationVerifier.sol';
 import './MockWithdrawalVerifier.sol';
 import './MockSlashingVerifier.sol';
 import './MockRefundVerifier.sol';
+import './MockPolicyVerifier.sol';
 
 contract ZkApiCreditsTest is Test {
     ZkApiCredits public zkApi;
     MockWithdrawalVerifier public mockWithdrawalVerifier;
     MockRefundVerifier public mockRefundVerifier;
     MockSlashingVerifier public mockSlashingVerifier;
+    MockPolicyVerifier public mockPolicyVerifier;
 
     address public owner;
     address public server;
@@ -57,7 +60,8 @@ contract ZkApiCreditsTest is Test {
     event PolicyViolationSlashed(
         bytes32 indexed nullifier,
         bytes32 indexed idCommitment,
-        uint256 amountBurned
+        uint256 amountBurned,
+        bytes32 evidenceHash
     );
 
     function setUp() public {
@@ -82,11 +86,13 @@ contract ZkApiCreditsTest is Test {
         mockWithdrawalVerifier = new MockWithdrawalVerifier();
         mockRefundVerifier = new MockRefundVerifier();
         mockSlashingVerifier = new MockSlashingVerifier();
+        mockPolicyVerifier = new MockPolicyVerifier();
 
         // Replace production verifiers with mocks for testing
         zkApi.setWithdrawalVerifier(WithdrawalVerifier(address(mockWithdrawalVerifier)));
         zkApi.setRefundVerifier(RefundRedemptionVerifier(address(mockRefundVerifier)));
         zkApi.setSlashingVerifier(DoubleSpendSlashingVerifier(address(mockSlashingVerifier)));
+        zkApi.setPolicyVerifier(PolicyViolationVerifier(address(mockPolicyVerifier)));
 
         // Generate test identity commitments using Poseidon (matching circuit)
         secretKey1 = keccak256(abi.encodePacked('secret1'));
@@ -367,49 +373,6 @@ contract ZkApiCreditsTest is Test {
         );
     }
 
-    // ============ Policy Violation Slashing Tests ============
-
-    function test_SlashPolicyViolation_Success() public {
-        uint256 depositAmount = 0.01 ether;
-
-        // User deposits
-        vm.prank(user1);
-        zkApi.deposit{value: depositAmount}(idCommitment1);
-
-        // Server slashes for policy violation
-        bytes32 nullifier = keccak256(abi.encodePacked('violating_nullifier'));
-        bytes memory proof = abi.encodePacked('zk_proof_data');
-
-        vm.prank(server);
-        vm.expectEmit(true, true, false, true);
-        emit PolicyViolationSlashed(
-            nullifier,
-            idCommitment1,
-            depositAmount / 2
-        );
-
-        zkApi.slashPolicyViolation(nullifier, idCommitment1, proof);
-
-        // Verify policy stake was burned
-        ZkApiCredits.Deposit memory dep = zkApi.getDeposit(idCommitment1);
-        assertEq(dep.policyStake, 0);
-        assertTrue(zkApi.slashedNullifiers(nullifier));
-    }
-
-    function test_SlashPolicyViolation_Unauthorized() public {
-        // User deposits
-        vm.prank(user1);
-        zkApi.deposit{value: 0.01 ether}(idCommitment1);
-
-        // Non-server tries to slash
-        bytes32 nullifier = keccak256(abi.encodePacked('nullifier'));
-        bytes memory proof = abi.encodePacked('proof');
-
-        vm.prank(user2);
-        vm.expectRevert(ZkApiCredits.Unauthorized.selector);
-        zkApi.slashPolicyViolation(nullifier, idCommitment1, proof);
-    }
-
     // ============ Admin Tests ============
 
     function test_SetServerAddress() public {
@@ -471,5 +434,86 @@ contract ZkApiCreditsTest is Test {
 
         bytes32 rootAfter = zkApi.merkleRoot();
         assertTrue(rootBefore != rootAfter);
+    }
+
+    // ============ Policy Violation Slashing Tests ============
+
+    function test_PolicyViolationSlashing_Success() public {
+        // First, user makes a deposit
+        vm.prank(user1);
+        zkApi.deposit{value: 0.01 ether}(idCommitment1);
+
+        // Verify initial policy stake
+        ZkApiCredits.Deposit memory depBefore = zkApi.getDeposit(idCommitment1);
+        assertEq(depBefore.policyStake, 0.005 ether);
+
+        // Create mock proof and public signals
+        uint256[8] memory proof;
+        proof[0] = 1; // Non-zero to pass mock verifier
+
+        bytes32 nullifier = keccak256('test_nullifier');
+        bytes32 evidenceHash = keccak256('violation_evidence');
+
+        uint256[3] memory publicSignals;
+        publicSignals[0] = uint256(nullifier);
+        publicSignals[1] = uint256(idCommitment1);
+        publicSignals[2] = uint256(evidenceHash);
+
+        // Server slashes for policy violation
+        vm.startPrank(server);
+
+        vm.expectEmit(true, true, false, true);
+        emit PolicyViolationSlashed(nullifier, idCommitment1, 0.005 ether, evidenceHash);
+
+        zkApi.slashPolicyViolation(nullifier, idCommitment1, proof, publicSignals);
+        vm.stopPrank();
+
+        // Verify policy stake was burned
+        ZkApiCredits.Deposit memory depAfter = zkApi.getDeposit(idCommitment1);
+        assertEq(depAfter.policyStake, 0);
+
+        // Verify nullifier is marked as slashed
+        assertTrue(zkApi.slashedNullifiers(nullifier));
+    }
+
+    function test_PolicyViolationSlashing_OnlyServer() public {
+        vm.prank(user1);
+        zkApi.deposit{value: 0.01 ether}(idCommitment1);
+
+        uint256[8] memory proof;
+        proof[0] = 1;
+
+        bytes32 nullifier = keccak256('test_nullifier');
+
+        uint256[3] memory publicSignals;
+        publicSignals[0] = uint256(nullifier);
+        publicSignals[1] = uint256(idCommitment1);
+        publicSignals[2] = uint256(keccak256('evidence'));
+
+        // Non-server cannot slash
+        vm.startPrank(user2);
+        vm.expectRevert(ZkApiCredits.Unauthorized.selector);
+        zkApi.slashPolicyViolation(nullifier, idCommitment1, proof, publicSignals);
+        vm.stopPrank();
+    }
+
+    function test_PolicyViolationSlashing_RequiresProof() public {
+        vm.prank(user1);
+        zkApi.deposit{value: 0.01 ether}(idCommitment1);
+
+        uint256[8] memory proof; // All zeros - will fail mock verifier
+
+        bytes32 nullifier = keccak256('test_nullifier');
+
+        uint256[3] memory publicSignals;
+        publicSignals[0] = uint256(nullifier);
+        publicSignals[1] = uint256(idCommitment1);
+        publicSignals[2] = uint256(keccak256('evidence'));
+
+        // Should revert due to invalid proof
+        vm.startPrank(server);
+        vm.expectRevert(ZkApiCredits.InvalidProof.selector);
+        zkApi.slashPolicyViolation(nullifier, idCommitment1, proof, publicSignals);
+        vm.stopPrank();
     }
 }

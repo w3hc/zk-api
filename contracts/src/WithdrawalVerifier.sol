@@ -200,21 +200,28 @@ contract WithdrawalVerifier {
              return(0, 0x20)
          }
      }
+ 
 
-     /// @notice Wrapper function for ZkApiCredits contract compatibility
-     /// @dev Converts proof format from flat array to nested structure
-     /// @param _proof Flat proof array [pA.x, pA.y, pB.x[0], pB.x[1], pB.y[0], pB.y[1], pC.x, pC.y]
-     /// @param _publicSignals Public signals array (6 elements for withdrawal circuit)
-     /// @return True if the proof is valid
-     function verifyWithdrawalProof(
-         uint256[8] calldata _proof,
-         uint256[6] calldata _publicSignals
-     ) public view returns (bool) {
-         return this.verifyProof(
-             [_proof[0], _proof[1]],
-             [[_proof[2], _proof[3]], [_proof[4], _proof[5]]],
-             [_proof[6], _proof[7]],
-             _publicSignals
-         );
-     }
- }
+    /// @notice Verify proof with simplified interface
+    function verifyWithdrawalProof(uint256[8] calldata _proof, uint256[6] calldata _publicSignals) external view returns (bool) {
+        uint256[2] memory pA;
+        pA[0] = _proof[0];
+        pA[1] = _proof[1];
+
+        uint256[2][2] memory pB;
+        pB[0][0] = _proof[2];
+        pB[0][1] = _proof[3];
+        pB[1][0] = _proof[4];
+        pB[1][1] = _proof[5];
+
+        uint256[2] memory pC;
+        pC[0] = _proof[6];
+        pC[1] = _proof[7];
+
+        (bool success, bytes memory data) = address(this).staticcall(
+            abi.encodeWithSelector(this.verifyProof.selector, pA, pB, pC, _publicSignals)
+        );
+        require(success);
+        return abi.decode(data, (bool));
+    }
+}

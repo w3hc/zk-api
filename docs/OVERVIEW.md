@@ -105,7 +105,7 @@ The smart contract manages the economic guarantees and serves as the source of t
 
 ### 2. Zero-Knowledge Circuit Layer
 
-The system uses three specialized ZK circuits (Groth16) for different operations:
+The system uses four specialized ZK circuits (Groth16) for different operations:
 
 **Production Circuits**:
 
@@ -121,7 +121,7 @@ The system uses three specialized ZK circuits (Groth16) for different operations
    - Verifier: [WithdrawalVerifier.sol](../contracts/src/WithdrawalVerifier.sol)
 
 3. **Refund Redemption Circuit** ([refund_redemption.circom](../circuits/refund_redemption.circom))
-   - 11,156 constraints, 11,161 wires
+   - 10,170 constraints, 10,173 wires
    - Proves EdDSA signature validity on refund tickets
    - Verifier: [RefundRedemptionVerifier.sol](../contracts/src/RefundRedemptionVerifier.sol)
 
@@ -129,6 +129,13 @@ The system uses three specialized ZK circuits (Groth16) for different operations
    - 1,357 constraints, 1,361 wires
    - Proves secret key extraction from dual RLN signals
    - Verifier: [DoubleSpendSlashingVerifier.sol](../contracts/src/DoubleSpendSlashingVerifier.sol)
+
+5. **Policy Violation Circuit** ([policy_violation.circom](../circuits/policy_violation.circom))
+   - 837 constraints, 843 wires
+   - Proves server knows RLN signal from actual request
+   - Binds nullifier ↔ idCommitment ↔ violation evidence
+   - Prevents arbitrary policy stake burning (C-4 security fix)
+   - Verifier: [PolicyViolationVerifier.sol](../contracts/src/PolicyViolationVerifier.sol)
 
 **Test Circuit**: [`circuits/api_credit_proof_test.circom`](../circuits/api_credit_proof_test.circom) (development only)
 

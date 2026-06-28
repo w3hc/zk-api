@@ -2,10 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
 
-// Smart contract ABI for the slashDoubleSpend function
-const SLASH_DOUBLE_SPEND_ABI = [
-  'function slashDoubleSpend(bytes32 _secretKey, bytes32 _nullifier1, bytes32 _nullifier2, tuple(uint256 x, uint256 y) _signal1, tuple(uint256 x, uint256 y) _signal2) external',
+// Smart contract ABI for slashing functions
+const SLASHING_ABI = [
+  'function slashDoubleSpend(bytes32 _secretKey, bytes32 _nullifier, bytes32 _idCommitment, uint256[8] _proof, uint256[4] _publicSignals) external',
+  'function slashPolicyViolation(bytes32 _nullifier, bytes32 _idCommitment, uint256[8] _proof, uint256[3] _publicSignals) external',
   'event DoubleSpendSlashed(bytes32 indexed secretKey, bytes32 indexed nullifier, address indexed slasher, uint256 reward)',
+  'event PolicyViolationSlashed(bytes32 indexed nullifier, bytes32 indexed idCommitment, uint256 amountBurned, bytes32 evidenceHash)',
 ];
 
 interface RlnSignal {
@@ -39,7 +41,7 @@ export class SlashingService {
         this.wallet = new ethers.Wallet(privateKey, this.provider);
         this.contract = new ethers.Contract(
           this.contractAddress,
-          SLASH_DOUBLE_SPEND_ABI,
+          SLASHING_ABI,
           this.wallet,
         );
         this.logger.log(
@@ -181,5 +183,60 @@ export class SlashingService {
    */
   getSlasherAddress(): string | null {
     return this.wallet?.address || null;
+  }
+
+  /**
+   * Submit a slashing transaction for policy violation
+   * @param nullifier The nullifier from the violating request
+   * @param idCommitment The user's identity commitment
+   * @param proof ZK proof components [pA, pB, pC]
+   * @param publicSignals Public inputs [nullifierExpected, idCommitmentExpected, evidenceHash]
+   * @returns Transaction hash if successful
+   */
+  async slashPolicyViolation(
+    nullifier: string,
+    idCommitment: string,
+    proof: bigint[],
+    publicSignals: bigint[],
+  ): Promise<string | null> {
+    if (!this.contract) {
+      this.logger.warn(
+        'Policy slashing transaction skipped - contract not configured',
+      );
+      return null;
+    }
+
+    try {
+      this.logger.log(
+        `Submitting policy slashing transaction for nullifier: ${nullifier.slice(0, 10)}...`,
+      );
+
+      // Submit transaction
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const tx = await this.contract.slashPolicyViolation(
+        nullifier,
+        idCommitment,
+        proof,
+        publicSignals,
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const txHash = tx.hash as string;
+      this.logger.log(`Policy slashing transaction submitted: ${txHash}`);
+
+      // Wait for confirmation
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      const receipt = await tx.wait();
+
+      this.logger.log(
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        `Policy slashing transaction confirmed in block ${receipt?.blockNumber || 'unknown'}`,
+      );
+
+      return txHash;
+    } catch (error) {
+      this.logger.error('Failed to submit policy slashing transaction', error);
+      throw new Error('Policy slashing transaction failed', { cause: error });
+    }
   }
 }

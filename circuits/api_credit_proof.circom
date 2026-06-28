@@ -1,7 +1,7 @@
 pragma circom 2.0.0;
 
 include "../node_modules/circomlib/circuits/poseidon.circom";
-include "../node_modules/circomlib/circuits/eddsa.circom";
+include "../node_modules/circomlib/circuits/eddsaposeidon.circom";
 include "../node_modules/circomlib/circuits/comparators.circom";
 include "../node_modules/circomlib/circuits/bitify.circom";
 
@@ -112,7 +112,7 @@ template ApiCreditProof(levels, maxRefunds) {
         refundHashers[i].inputs[3] <== refundTimestamps[i];
 
         // Verify EdDSA signature using Poseidon-EdDSA
-        refundVerifiers[i] = EdDSAVerifier();
+        refundVerifiers[i] = EdDSAPoseidonVerifier();
         refundVerifiers[i].enabled <== (i < numRefunds) ? 1 : 0;
         refundVerifiers[i].Ax <== serverPubKeyX;
         refundVerifiers[i].Ay <== serverPubKeyY;
