@@ -1,7 +1,7 @@
 pragma circom 2.0.0;
 
 include "../node_modules/circomlib/circuits/poseidon.circom";
-include "../node_modules/circomlib/circuits/eddsamimc.circom";
+include "../node_modules/circomlib/circuits/eddsa.circom";
 include "../node_modules/circomlib/circuits/comparators.circom";
 
 /**
@@ -61,17 +61,20 @@ template RefundRedemptionProof() {
     signalY <== secretKey + a * signalX;
 
     // 5. Verify EdDSA signature on refund ticket
-    // Message = Poseidon(idCommitment, nullifier, refundValue, refundTimestamp)
+    // Canonical message format: Poseidon(idCommitment, nullifier, refundValue, refundTimestamp)
+    // This MUST match:
+    // - refund-signer.service.ts hashRefundData()
+    // - api_credit_proof.circom refund verification
+    // - ZkApiCredits.sol _hashRefundData()
     component messageHash = Poseidon(4);
     messageHash.inputs[0] <== idCommitment;
     messageHash.inputs[1] <== nullifier;
     messageHash.inputs[2] <== refundValue;
     messageHash.inputs[3] <== refundTimestamp;
 
-    // Verify EdDSA signature
-    // Note: EdDSAMiMCVerifier uses MiMC hash internally
-    // The verifier enforces constraints directly - no output signal
-    component signatureVerifier = EdDSAMiMCVerifier();
+    // Verify EdDSA signature using Poseidon-EdDSA (matches circomlibjs signPoseidon/verifyPoseidon)
+    // EdDSAVerifier uses Poseidon hash internally, compatible with eddsa.signPoseidon()
+    component signatureVerifier = EdDSAVerifier();
     signatureVerifier.enabled <== 1;
     signatureVerifier.Ax <== serverPublicKeyX;
     signatureVerifier.Ay <== serverPublicKeyY;

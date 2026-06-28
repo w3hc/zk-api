@@ -56,6 +56,8 @@ template ApiCreditProof(levels, maxRefunds) {
     signal input pathElements[levels];               // Merkle proof path
     signal input pathIndices[levels];                // Merkle proof indices
     signal input refundValues[maxRefunds];           // Refund ticket values
+    signal input refundNullifiers[maxRefunds];       // Refund nullifiers (for signature binding)
+    signal input refundTimestamps[maxRefunds];       // Refund timestamps (for signature binding)
     signal input refundSignaturesR8x[maxRefunds];    // EdDSA signature R8x
     signal input refundSignaturesR8y[maxRefunds];    // EdDSA signature R8y
     signal input refundSignaturesS[maxRefunds];      // EdDSA signature S
@@ -90,6 +92,11 @@ template ApiCreditProof(levels, maxRefunds) {
     }
 
     // 3. Verify refund signatures and sum refunds
+    // Canonical message format: Poseidon(idCommitment, nullifier, value, timestamp)
+    // This MUST match:
+    // - refund-signer.service.ts hashRefundData()
+    // - refund_redemption.circom signature verification
+    // - ZkApiCredits.sol _hashRefundData()
     component refundVerifiers[maxRefunds];
     component refundHashers[maxRefunds];
     signal totalRefunds;
@@ -97,11 +104,14 @@ template ApiCreditProof(levels, maxRefunds) {
     refundSum[0] <== 0;
 
     for (var i = 0; i < maxRefunds; i++) {
-        // Hash the refund value to create message for signature
-        refundHashers[i] = Poseidon(1);
-        refundHashers[i].inputs[0] <== refundValues[i];
+        // Hash the complete refund data: Poseidon(idCommitment, nullifier, value, timestamp)
+        refundHashers[i] = Poseidon(4);
+        refundHashers[i].inputs[0] <== idCommitment;
+        refundHashers[i].inputs[1] <== refundNullifiers[i];
+        refundHashers[i].inputs[2] <== refundValues[i];
+        refundHashers[i].inputs[3] <== refundTimestamps[i];
 
-        // Verify EdDSA signature
+        // Verify EdDSA signature using Poseidon-EdDSA
         refundVerifiers[i] = EdDSAVerifier();
         refundVerifiers[i].enabled <== (i < numRefunds) ? 1 : 0;
         refundVerifiers[i].Ax <== serverPubKeyX;

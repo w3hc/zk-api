@@ -676,24 +676,37 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
 
     /**
      * @notice Hash refund data for signature verification
-     * @dev Must match EXACTLY what the server signs (refund-signer.service.ts line 180)
-     * @dev Server signs: EdDSA_sign(Poseidon(nullifier, value, timestamp))
+     * @dev CANONICAL MESSAGE FORMAT: EdDSA_sign(Poseidon(idCommitment, nullifier, value, timestamp))
+     *
+     * This MUST match:
+     * - refund-signer.service.ts hashRefundData()
+     * - refund_redemption.circom signature verification (lines 64-73)
+     * - api_credit_proof.circom refund verification (lines 107-112)
      *
      * Security Note:
-     * - The signature covers nullifier, value, and timestamp for complete integrity
+     * - The signature covers idCommitment, nullifier, value, and timestamp for complete integrity
+     * - idCommitment binds the refund to a specific user identity
+     * - nullifier binds the refund to a specific API request
      * - Replay protection comes from the nullifier being marked as redeemed
-     * - Each nullifier can only be redeemed once (line 317 check)
-     * - The nullifier ties the refund to a specific API request
      * - Timestamp prevents signature reuse across different redemption attempts
+     *
+     * Note: This function is currently unused (signature verification happens in the ZK circuit).
+     * It is kept for reference and potential future on-chain verification optimizations.
      */
     function _hashRefundData(
+        bytes32 _idCommitment,
         bytes32 _nullifier,
         uint256 _value,
         uint256 _timestamp
     ) internal pure returns (bytes32) {
-        // Hash all three values using Poseidon to match server implementation
-        // This matches refund-signer.service.ts: poseidon([nullifier, value, timestamp])
-        return bytes32(PoseidonHasher.hash3(uint256(_nullifier), _value, _timestamp));
+        // Hash all four values using Poseidon to match server and circuit implementations
+        // Poseidon(idCommitment, nullifier, value, timestamp)
+        return bytes32(PoseidonHasher.hash4(
+            uint256(_idCommitment),
+            uint256(_nullifier),
+            _value,
+            _timestamp
+        ));
     }
 
     /**
