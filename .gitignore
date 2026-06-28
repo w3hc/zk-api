@@ -32,6 +32,7 @@ lerna-debug.log*
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+.claude/
 
 # Environment variables
 .env
@@ -64,6 +65,7 @@ tmp/
 circuits/build/
 circuits/*_test.circom
 circuits/*.sym
+*.ptau
 
 # Foundry artifacts
 contracts/cache/
