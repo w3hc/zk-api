@@ -50,6 +50,9 @@ NULLIFIER=$(echo "$PUBLIC_INPUTS" | jq -r '.nullifier')
 SIGNAL_X=$(echo "$PUBLIC_INPUTS" | jq -r '.signalX' | sed 's/0x//')
 SIGNAL_Y=$(echo "$PUBLIC_INPUTS" | jq -r '.signalY' | sed 's/0x//')
 MAX_COST=$(echo "$PUBLIC_INPUTS" | jq -r '.maxCost')
+MERKLE_ROOT=$(echo "$PUBLIC_INPUTS" | jq -r '.merkleRoot')
+INITIAL_DEPOSIT=$(echo "$PUBLIC_INPUTS" | jq -r '.initialDeposit')
+ID_COMMITMENT=$(echo "$PUBLIC_INPUTS" | jq -r '.idCommitment')
 
 # Convert hex to decimal for signals
 SIGNAL_X_DEC=$((16#$SIGNAL_X))
@@ -74,7 +77,11 @@ REQUEST_JSON=$(cat <<EOF
     "y": "$SIGNAL_Y_DEC"
   },
   "proof": $PROOF_STRING,
-  "maxCost": "$MAX_COST"
+  "maxCost": "$MAX_COST",
+  "merkleRoot": "$MERKLE_ROOT",
+  "initialDeposit": "$INITIAL_DEPOSIT",
+  "ticketIndex": "$RANDOM_TICKET_INDEX",
+  "idCommitment": "$ID_COMMITMENT"
 }
 EOF
 )
@@ -111,6 +118,9 @@ SIGNAL_X2=$(echo "$PUBLIC_INPUTS2" | jq -r '.signalX' | sed 's/0x//')
 SIGNAL_Y2=$(echo "$PUBLIC_INPUTS2" | jq -r '.signalY' | sed 's/0x//')
 SIGNAL_X2_DEC=$((16#$SIGNAL_X2))
 SIGNAL_Y2_DEC=$((16#$SIGNAL_Y2))
+MERKLE_ROOT2=$(echo "$PUBLIC_INPUTS2" | jq -r '.merkleRoot')
+INITIAL_DEPOSIT2=$(echo "$PUBLIC_INPUTS2" | jq -r '.initialDeposit')
+ID_COMMITMENT2=$(echo "$PUBLIC_INPUTS2" | jq -r '.idCommitment')
 
 PROOF_STRING2=$(echo "$PROOF_JSON2" | jq -c | jq -R)
 
@@ -128,7 +138,11 @@ REQUEST_JSON2=$(cat <<EOF
     "y": "$SIGNAL_Y2_DEC"
   },
   "proof": $PROOF_STRING2,
-  "maxCost": "$MAX_COST"
+  "maxCost": "$MAX_COST",
+  "merkleRoot": "$MERKLE_ROOT2",
+  "initialDeposit": "$INITIAL_DEPOSIT2",
+  "ticketIndex": "$SECOND_TICKET_INDEX",
+  "idCommitment": "$ID_COMMITMENT2"
 }
 EOF
 )

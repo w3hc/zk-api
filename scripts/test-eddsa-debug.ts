@@ -23,15 +23,30 @@ async function main() {
   console.log('  y:', pubKeyY);
   console.log('');
 
-  // Test data
+  // Test data - CANONICAL MESSAGE FORMAT
+  // Poseidon(idCommitment, nullifier, value, timestamp)
+  const idCommitment = BigInt('0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef');
   const nullifier = BigInt('0x2ebcdcfa43945cdb0722382d6eb63f8068b8bcf5ac358e13f2a6b2c75f971473');
   const value = BigInt('998775379525626');
   const timestamp = BigInt('1775629597512');
 
-  // Compute message hash
-  const messageHash = poseidon([nullifier, value, timestamp]);
+  console.log('Test Data:');
+  console.log('  idCommitment:', '0x' + idCommitment.toString(16).padStart(64, '0'));
+  console.log('  nullifier:', '0x' + nullifier.toString(16).padStart(64, '0'));
+  console.log('  value:', value.toString());
+  console.log('  timestamp:', timestamp.toString());
+  console.log('');
+
+  // Compute message hash using canonical 4-input format
+  // This MUST match:
+  // - refund-signer.service.ts hashRefundData()
+  // - refund_redemption.circom (lines 64-73)
+  // - api_credit_proof.circom (lines 107-112)
+  // - ZkApiCredits.sol _hashRefundData()
+  const messageHash = poseidon([idCommitment, nullifier, value, timestamp]);
   const message = poseidon.F.toObject(messageHash);
-  console.log('Message Hash:', '0x' + message.toString(16).padStart(64, '0'));
+  console.log('Message Hash (Poseidon(idCommitment, nullifier, value, timestamp)):');
+  console.log('  ', '0x' + message.toString(16).padStart(64, '0'));
   console.log('');
 
   // Sign

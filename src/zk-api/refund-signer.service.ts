@@ -111,6 +111,7 @@ export class RefundSignerService {
    * Sign a refund ticket
    */
   async signRefund(refundData: {
+    idCommitment: string;
     nullifier: string;
     value: string;
     timestamp: number;
@@ -142,10 +143,14 @@ export class RefundSignerService {
   /**
    * Verify a refund signature (for testing)
    */
-  async verifyRefund(ticket: RefundTicketDto): Promise<boolean> {
+  async verifyRefund(
+    ticket: RefundTicketDto,
+    idCommitment: string,
+  ): Promise<boolean> {
     await this.ensureInitialized();
 
     const message = this.hashRefundData({
+      idCommitment,
       nullifier: ticket.nullifier,
       value: ticket.value,
       timestamp: ticket.timestamp,
@@ -165,19 +170,30 @@ export class RefundSignerService {
   }
 
   private hashRefundData(data: {
+    idCommitment: string;
     nullifier: string;
     value: string;
     timestamp: number;
   }): bigint {
     // Use Poseidon hash for circuit compatibility
-    // Convert inputs to field elements
+    // Canonical message format: Poseidon(idCommitment, nullifier, value, timestamp)
+    // This MUST match:
+    // - refund_redemption.circom line 64-69
+    // - api_credit_proof.circom refund verification
+    // - ZkApiCredits.sol _hashRefundData
+    const idCommitmentBigInt = BigInt(data.idCommitment);
     const nullifierBigInt = BigInt(data.nullifier);
     const valueBigInt = BigInt(data.value);
     const timestampBigInt = BigInt(data.timestamp);
 
-    // Hash with Poseidon
+    // Hash with Poseidon(4 inputs)
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
-    const hash = this.poseidon([nullifierBigInt, valueBigInt, timestampBigInt]);
+    const hash = this.poseidon([
+      idCommitmentBigInt,
+      nullifierBigInt,
+      valueBigInt,
+      timestampBigInt,
+    ]);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
     return this.poseidon.F.toObject(hash);
   }

@@ -178,6 +178,7 @@ export class ZkApiService {
     // 7. Generate refund ticket
     const refundValue = BigInt(req.maxCost) - actualCost;
     const refundTicket = await this.refundSigner.signRefund({
+      idCommitment: req.idCommitment,
       nullifier: req.nullifier,
       value: refundValue.toString(),
       timestamp: Date.now(),

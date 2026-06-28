@@ -77,6 +77,22 @@ library PoseidonHasher {
     }
 
     /**
+     * @notice Hash four field elements using Poseidon
+     * @dev Uses iterative PoseidonT3 to avoid large contract size of PoseidonT5
+     * @dev Computes: Poseidon(Poseidon(Poseidon(a, b), c), d)
+     * @param a First uint256 value
+     * @param b Second uint256 value
+     * @param c Third uint256 value
+     * @param d Fourth uint256 value
+     * @return Poseidon hash output as uint256
+     */
+    function hash4(uint256 a, uint256 b, uint256 c, uint256 d) internal pure returns (uint256) {
+        uint256 h = hash(a, b);
+        h = hash(h, c);
+        return hash(h, d);
+    }
+
+    /**
      * @notice Hash five field elements using Poseidon
      * @dev Uses iterative PoseidonT3 to avoid large contract size of PoseidonT6
      * @dev Computes: Poseidon(Poseidon(Poseidon(Poseidon(inputs[0], inputs[1]), inputs[2]), inputs[3]), inputs[4])
