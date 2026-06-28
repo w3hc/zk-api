@@ -40,7 +40,7 @@ export class ZkApiRequestDto {
   @Type(() => RlnSignalDto)
   signal: RlnSignalDto;
 
-  @ApiProperty({ description: 'ZK-STARK proof' })
+  @ApiProperty({ description: 'ZK-SNARK proof (Groth16)' })
   @IsString()
   @IsNotEmpty()
   proof: string;
@@ -49,6 +49,26 @@ export class ZkApiRequestDto {
   @IsString()
   @IsNotEmpty()
   maxCost: string;
+
+  @ApiProperty({ description: 'Merkle root from on-chain state' })
+  @IsString()
+  @IsNotEmpty()
+  merkleRoot: string;
+
+  @ApiProperty({ description: 'Initial deposit amount (in wei)' })
+  @IsString()
+  @IsNotEmpty()
+  initialDeposit: string;
+
+  @ApiProperty({ description: 'Ticket index for this request' })
+  @IsString()
+  @IsNotEmpty()
+  ticketIndex: string;
+
+  @ApiProperty({ description: 'Identity commitment (Hash of secret key)' })
+  @IsString()
+  @IsNotEmpty()
+  idCommitment: string;
 
   @ApiProperty({
     description: 'Model/service variant to use (example: claude-sonnet-4.6)',

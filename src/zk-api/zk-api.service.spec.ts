@@ -127,11 +127,17 @@ describe('ZkApiService', () => {
       },
       proof: '0xdeadbeef',
       maxCost: '1000000000000000', // 0.001 ETH
+      merkleRoot:
+        '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+      initialDeposit: '10000000000000000', // 0.01 ETH
+      ticketIndex: '0',
+      idCommitment:
+        '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
     };
 
     it('should process valid request successfully', async () => {
       // Mock proof verification
-      jest.spyOn(proofVerifier, 'verify').mockReturnValue(true);
+      jest.spyOn(proofVerifier, 'verify').mockResolvedValue(true);
 
       // Mock ETH rate
       jest.spyOn(ethRateOracle, 'usdToWei').mockResolvedValue(BigInt(100000));
@@ -146,7 +152,7 @@ describe('ZkApiService', () => {
     });
 
     it('should reject invalid proof', async () => {
-      jest.spyOn(proofVerifier, 'verify').mockReturnValue(false);
+      jest.spyOn(proofVerifier, 'verify').mockResolvedValue(false);
 
       await expect(service.handleRequest(validRequest)).rejects.toThrow(
         UnauthorizedException,
@@ -154,7 +160,7 @@ describe('ZkApiService', () => {
     });
 
     it('should reject reused nullifier', async () => {
-      jest.spyOn(proofVerifier, 'verify').mockReturnValue(true);
+      jest.spyOn(proofVerifier, 'verify').mockResolvedValue(true);
       jest.spyOn(ethRateOracle, 'usdToWei').mockResolvedValue(BigInt(100000));
 
       // First request succeeds
@@ -167,7 +173,7 @@ describe('ZkApiService', () => {
     });
 
     it('should detect double-spend (same nullifier, different signal)', async () => {
-      jest.spyOn(proofVerifier, 'verify').mockReturnValue(true);
+      jest.spyOn(proofVerifier, 'verify').mockResolvedValue(true);
       jest.spyOn(ethRateOracle, 'usdToWei').mockResolvedValue(BigInt(100000));
 
       // First request
@@ -206,7 +212,7 @@ describe('ZkApiService', () => {
       );
 
       // Create request that will trigger double-spend detection
-      jest.spyOn(proofVerifier, 'verify').mockReturnValue(true);
+      jest.spyOn(proofVerifier, 'verify').mockResolvedValue(true);
       jest.spyOn(ethRateOracle, 'usdToWei').mockResolvedValue(BigInt(100000));
 
       const request1: ZkApiRequestDto = {
@@ -248,7 +254,7 @@ describe('ZkApiService', () => {
     });
 
     it('should enforce per-nullifier rate limiting', async () => {
-      jest.spyOn(proofVerifier, 'verify').mockReturnValue(true);
+      jest.spyOn(proofVerifier, 'verify').mockResolvedValue(true);
       jest.spyOn(ethRateOracle, 'usdToWei').mockResolvedValue(BigInt(100000));
 
       // Create requests with different nullifiers (valid hex numbers)
@@ -287,7 +293,7 @@ describe('ZkApiService', () => {
     });
 
     it('should allow requests after rate limit window expires', async () => {
-      jest.spyOn(proofVerifier, 'verify').mockReturnValue(true);
+      jest.spyOn(proofVerifier, 'verify').mockResolvedValue(true);
       jest.spyOn(ethRateOracle, 'usdToWei').mockResolvedValue(BigInt(100000));
 
       // Use 3 attempts (valid hex number)

@@ -194,7 +194,11 @@ Create a request JSON file (`request.json`):
     "y": "4792263333310052430362670197383952318557778147848241908894849361182708510229"
   },
   "proof": "{\"pi_a\":[\"0x...\",\"0x...\"],\"pi_b\":[[\"0x...\",\"0x...\"],[\"0x...\",\"0x...\"]],\"pi_c\":[\"0x...\",\"0x...\"],\"protocol\":\"groth16\"}",
-  "maxCost": "1000000000000000"
+  "maxCost": "1000000000000000",
+  "merkleRoot": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+  "initialDeposit": "10000000000000000",
+  "ticketIndex": "0",
+  "idCommitment": "0x096f56a93ef8bcf4f5efc79d0967649f93d08eff0af7dca5a4f9aa8db1a434b6"
 }
 ```
 
