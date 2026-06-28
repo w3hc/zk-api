@@ -50,7 +50,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Install Forge dependencies
-        run: cd contracts && forge install --no-commit
+        run: cd contracts && forge install
         shell: bash
 
       - name: Build native modules
