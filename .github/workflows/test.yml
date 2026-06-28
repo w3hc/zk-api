@@ -31,7 +31,6 @@ jobs:
         uses: pnpm/action-setup@v4
 
       - name: Get pnpm store directory
-        shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
@@ -46,11 +45,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install Forge dependencies
+        run: |
+          cd contracts
+          forge install OpenZeppelin/openzeppelin-contracts
+          forge install foundry-rs/forge-std
+
       - name: Build native modules
         run: |
           cd node_modules/.pnpm/better-sqlite3@12.8.0/node_modules/better-sqlite3
           npm run build-release
-        shell: bash
 
       - name: Run linter
         run: pnpm lint
@@ -63,3 +70,6 @@ jobs:
 
       - name: Run tests with coverage
         run: npm run test:cov
+
+      - name: Run Solidity contract tests
+        run: cd contracts && forge test

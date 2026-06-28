@@ -1,7 +1,7 @@
 pragma circom 2.0.0;
 
 include "../node_modules/circomlib/circuits/poseidon.circom";
-include "../node_modules/circomlib/circuits/eddsa.circom";
+include "../node_modules/circomlib/circuits/eddsaposeidon.circom";
 include "../node_modules/circomlib/circuits/comparators.circom";
 
 /**
@@ -73,8 +73,8 @@ template RefundRedemptionProof() {
     messageHash.inputs[3] <== refundTimestamp;
 
     // Verify EdDSA signature using Poseidon-EdDSA (matches circomlibjs signPoseidon/verifyPoseidon)
-    // EdDSAVerifier uses Poseidon hash internally, compatible with eddsa.signPoseidon()
-    component signatureVerifier = EdDSAVerifier();
+    // EdDSAPoseidonVerifier uses Poseidon hash internally, compatible with eddsa.signPoseidon()
+    component signatureVerifier = EdDSAPoseidonVerifier();
     signatureVerifier.enabled <== 1;
     signatureVerifier.Ax <== serverPublicKeyX;
     signatureVerifier.Ay <== serverPublicKeyY;

@@ -12,6 +12,8 @@ interface StoredSignal {
   x: string;
   y: string;
   timestamp: number;
+  rlnShare_a?: string; // RLN share 'a' for policy violation proofs
+  payloadHash?: string; // Hash of the payload for policy violation evidence
 }
 
 interface RefundRedemption {
@@ -28,6 +30,8 @@ interface NullifierRow {
   x: string;
   y: string;
   timestamp: number;
+  rln_share_a: string | null;
+  payload_hash: string | null;
 }
 
 interface RefundRow {
@@ -85,11 +89,16 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
         nullifier TEXT PRIMARY KEY,
         x TEXT NOT NULL,
         y TEXT NOT NULL,
-        timestamp INTEGER NOT NULL
+        timestamp INTEGER NOT NULL,
+        rln_share_a TEXT,
+        payload_hash TEXT
       );
 
       CREATE INDEX IF NOT EXISTS idx_nullifiers_timestamp ON nullifiers(timestamp);
     `);
+
+    // Migration: Add new columns if they don't exist
+    this.migrateAddPolicyViolationColumns();
 
     // Create redeemed_refunds table
     this.db.exec(`
@@ -125,6 +134,37 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
     if (this.db) {
       this.db.close();
       this.logger.log('SQLite database connection closed');
+    }
+  }
+
+  /**
+   * Migration: Add columns for policy violation proof generation
+   */
+  private migrateAddPolicyViolationColumns(): void {
+    try {
+      const columns = this.db
+        .prepare("PRAGMA table_info('nullifiers')")
+        .all() as Array<{ name: string }>;
+
+      const hasRlnShareA = columns.some((col) => col.name === 'rln_share_a');
+      const hasPayloadHash = columns.some((col) => col.name === 'payload_hash');
+
+      if (!hasRlnShareA) {
+        this.logger.log(
+          'Adding rln_share_a column for policy violation proofs',
+        );
+        this.db.exec('ALTER TABLE nullifiers ADD COLUMN rln_share_a TEXT');
+      }
+
+      if (!hasPayloadHash) {
+        this.logger.log(
+          'Adding payload_hash column for policy violation proofs',
+        );
+        this.db.exec('ALTER TABLE nullifiers ADD COLUMN payload_hash TEXT');
+      }
+    } catch (error) {
+      this.logger.error('Failed to migrate policy violation columns', error);
+      throw error;
     }
   }
 
@@ -202,9 +242,9 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
    */
   get(nullifier: string): StoredSignal | null {
     const stmt = this.db.prepare(
-      'SELECT x, y, timestamp FROM nullifiers WHERE nullifier = ?',
+      'SELECT x, y, timestamp, rln_share_a, payload_hash FROM nullifiers WHERE nullifier = ?',
     );
-    const row = stmt.get(nullifier) as StoredSignal | undefined;
+    const row = stmt.get(nullifier) as NullifierRow | undefined;
 
     if (!row) return null;
 
@@ -212,18 +252,30 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
       x: row.x,
       y: row.y,
       timestamp: row.timestamp,
+      rlnShare_a: row.rln_share_a || undefined,
+      payloadHash: row.payload_hash || undefined,
     };
   }
 
   /**
    * Store a new nullifier and its signal
    */
-  set(nullifier: string, signal: { x: string; y: string }): void {
+  set(
+    nullifier: string,
+    signal: { x: string; y: string; rlnShare_a?: string; payloadHash?: string },
+  ): void {
     const timestamp = Date.now();
     const stmt = this.db.prepare(
-      'INSERT OR REPLACE INTO nullifiers (nullifier, x, y, timestamp) VALUES (?, ?, ?, ?)',
+      'INSERT OR REPLACE INTO nullifiers (nullifier, x, y, timestamp, rln_share_a, payload_hash) VALUES (?, ?, ?, ?, ?, ?)',
     );
-    stmt.run(nullifier, signal.x, signal.y, timestamp);
+    stmt.run(
+      nullifier,
+      signal.x,
+      signal.y,
+      timestamp,
+      signal.rlnShare_a || null,
+      signal.payloadHash || null,
+    );
     this.logger.debug(`Stored nullifier: ${nullifier.slice(0, 10)}...`);
   }
 

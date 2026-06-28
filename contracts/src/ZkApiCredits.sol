@@ -9,6 +9,7 @@ import './BabyJubJub.sol';
 import './WithdrawalVerifier.sol';
 import './RefundRedemptionVerifier.sol';
 import './DoubleSpendSlashingVerifier.sol';
+import './PolicyViolationVerifier.sol';
 
 /**
  * @title ZkApiCredits
@@ -86,6 +87,7 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     WithdrawalVerifier public withdrawalVerifier;
     RefundRedemptionVerifier public refundVerifier;
     DoubleSpendSlashingVerifier public slashingVerifier;
+    PolicyViolationVerifier public policyVerifier;
 
     // ============ Events ============
 
@@ -112,7 +114,8 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     event PolicyViolationSlashed(
         bytes32 indexed nullifier,
         bytes32 indexed idCommitment,
-        uint256 amountBurned
+        uint256 amountBurned,
+        bytes32 evidenceHash
     );
 
     event MerkleRootUpdated(bytes32 indexed newRoot, uint256 leafCount);
@@ -162,6 +165,7 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         withdrawalVerifier = new WithdrawalVerifier();
         refundVerifier = new RefundRedemptionVerifier();
         slashingVerifier = new DoubleSpendSlashingVerifier();
+        policyVerifier = new PolicyViolationVerifier();
 
         // Initialize 20-level Merkle tree with zero values
         // zeros[i] = Poseidon(zeros[i-1], zeros[i-1])
@@ -355,23 +359,48 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
      * @notice Slash user for policy violation (ToS breach)
      * @param _nullifier The nullifier from the violating request
      * @param _idCommitment The user's identity commitment
-     * @param _proof ZK proof linking nullifier to idCommitment
+     * @param _proof ZK proof components [pA, pB, pC] in Groth16 format
+     * @param _publicSignals Public inputs [nullifierExpected, idCommitmentExpected]
      * @dev Policy stake is BURNED (not transferred to server) to prevent false accusations
+     * @dev The circuit proves:
+     *      1. The nullifier was derived from a valid RLN share
+     *      2. The violation evidence is cryptographically bound to the request
+     *      3. The idCommitment matches the on-chain deposit
      */
     function slashPolicyViolation(
         bytes32 _nullifier,
         bytes32 _idCommitment,
-        bytes calldata _proof
-    ) external {
+        uint256[8] calldata _proof,
+        uint256[3] calldata _publicSignals
+    ) external nonReentrant {
         if (msg.sender != serverAddress) revert Unauthorized();
 
         Deposit storage userDeposit = deposits[_idCommitment];
         if (!userDeposit.active) revert DepositNotFound();
         if (slashedNullifiers[_nullifier]) revert AlreadySlashed();
 
-        // In production, verify ZK proof here
-        // For now, we trust the server (since only server can call this)
-        _verifyPolicyProof(_proof);
+        // Verify ZK proof of policy violation
+        // Public signals: [nullifierExpected, idCommitmentExpected, evidenceHash (output)]
+        // The proof verifies:
+        // 1. The nullifier was derived from the RLN share 'a'
+        // 2. The evidence hash binds the nullifier to the violation content
+        // 3. The idCommitment matches the expected on-chain value
+        if (!policyVerifier.verifyPolicyProof(_proof, _publicSignals)) {
+            revert InvalidProof();
+        }
+
+        // Verify public signals match expected values
+        require(
+            _publicSignals[0] == uint256(_nullifier),
+            'nullifier mismatch'
+        );
+        require(
+            _publicSignals[1] == uint256(_idCommitment),
+            'idCommitment mismatch'
+        );
+
+        // Extract evidence hash from public signals (output from circuit)
+        bytes32 evidenceHash = bytes32(_publicSignals[2]);
 
         slashedNullifiers[_nullifier] = true;
         uint256 amountToBurn = userDeposit.policyStake;
@@ -381,7 +410,7 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         (bool success, ) = address(0).call{value: amountToBurn}('');
         require(success, 'Burn failed');
 
-        emit PolicyViolationSlashed(_nullifier, _idCommitment, amountToBurn);
+        emit PolicyViolationSlashed(_nullifier, _idCommitment, amountToBurn, evidenceHash);
     }
 
     /**
@@ -547,6 +576,15 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     }
 
     /**
+     * @notice Set policy violation verifier (for testing or upgrades)
+     */
+    function setPolicyVerifier(
+        PolicyViolationVerifier _verifier
+    ) external onlyOwner {
+        policyVerifier = _verifier;
+    }
+
+    /**
      * @notice Pause the contract (emergency)
      */
     function pause() external onlyOwner {
@@ -664,15 +702,6 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         return filledSubtrees[_level];
     }
 
-    /**
-     * @notice Verify ZK proof for policy violation
-     * @dev Placeholder - real implementation would verify ZK-STARK proof
-     */
-    function _verifyPolicyProof(bytes calldata _proof) internal pure {
-        // In production: Verify ZK proof that links nullifier to idCommitment
-        // For now, we accept any proof since only trusted server can call
-        require(_proof.length > 0, 'Proof required');
-    }
 
     /**
      * @notice Hash refund data for signature verification

@@ -32,6 +32,7 @@ lerna-debug.log*
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+.claude/
 
 # Environment variables
 .env
@@ -60,10 +61,11 @@ tmp/
 
 # Test artifacts (contains secret keys and nullifiers)
 .test-artifacts.json
-# Circom build artifacts - keep compiled circuits for CI
-# circuits/build/
+# Circom build artifacts
+circuits/build/
 circuits/*_test.circom
 circuits/*.sym
+*.ptau
 
 # Foundry artifacts
 contracts/cache/

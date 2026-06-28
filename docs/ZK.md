@@ -547,10 +547,11 @@ This implementation follows the [original ZK API Credits proposal](https://ethre
 
 ### Circuit Architecture
 - **Original**: Single large circuit for all operations
-- **Current**: Three domain-specific circuits
+- **Current**: Four domain-specific circuits
   - `withdrawal.circom` - Merkle membership + identity ownership
   - `refund_redemption.circom` - EdDSA signature batch verification
   - `double_spend_slashing.circom` - RLN secret key extraction
+  - `policy_violation.circom` - Policy violation evidence binding (C-4 security fix)
   - Benefits: Smaller trusted setups, faster proving, modular upgrades
 
 ### Merkle Tree

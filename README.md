@@ -11,6 +11,7 @@ Implementation of [ZK API Usage Credits: LLMs and Beyond](https://ethresear.ch/t
 - **Unlinkable Requests** - Each request uses a unique nullifier, preventing request correlation
 - **Multi-Provider Support** - Abstract provider layer supporting OpenAI, Stripe, and custom APIs
 - **Trustless Refunds** - Automatically receive refund tickets for unused credits
+- **Cryptographic Slashing** - Policy violations require ZK proofs binding nullifier, identity, and evidence
 - **TEE Support** - Deploy in Trusted Execution Environments (Phala Network, AWS Nitro Enclaves)
 - **Production-Ready Circuits** - Groth16 verifiers for withdrawal, refund, and slashing proofs
 - **Persistent Storage** - SQLite-based Merkle tree with privacy-preserving design
