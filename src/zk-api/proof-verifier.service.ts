@@ -50,52 +50,12 @@ export class ProofVerifierService {
   }
 
   /**
-   * Verify a ZK-SNARK proof using Groth16
+   * Verify a ZK-SNARK proof using Groth16 with cryptographic verification
    * @param proof The proof string to verify
-   * @returns true if proof is valid, false otherwise
-   */
-  verify(proof: string): boolean {
-    if (!proof || proof.length < 10) {
-      this.logger.warn('Invalid proof format');
-      return false;
-    }
-
-    try {
-      // Parse proof
-      const proofData = JSON.parse(proof);
-
-      // Basic structure validation
-      if (!proofData.protocol || proofData.protocol !== 'groth16') {
-        this.logger.warn('Invalid proof protocol');
-        return false;
-      }
-
-      if (
-        !proofData.pi_a ||
-        !proofData.pi_b ||
-        !proofData.pi_c ||
-        proofData.pi_a.length !== 2 ||
-        proofData.pi_b.length !== 2 ||
-        proofData.pi_c.length !== 2
-      ) {
-        this.logger.warn('Invalid proof structure');
-        return false;
-      }
-
-      this.logger.debug('Proof structure validated');
-      return true;
-    } catch (error) {
-      this.logger.error('Failed to verify proof', error);
-      return false;
-    }
-  }
-
-  /**
-   * Verify proof with public inputs
-   * @param proof The proof string
    * @param publicInputs The public inputs that should match the proof
+   * @returns Promise<boolean> true if proof is valid, false otherwise
    */
-  async verifyWithInputs(
+  async verify(
     proof: string,
     publicInputs: {
       merkleRoot: string;
@@ -127,11 +87,38 @@ export class ProofVerifierService {
     });
 
     // 1. Verify proof structure
-    const isValidProof = this.verify(proof);
-    if (!isValidProof) {
-      this.logger.warn('Proof structure validation failed');
+    if (!proof || proof.length < 10) {
+      this.logger.warn('Invalid proof format');
       return false;
     }
+
+    let proofData;
+    try {
+      proofData = JSON.parse(proof);
+    } catch (error) {
+      this.logger.error('Failed to parse proof JSON', error);
+      return false;
+    }
+
+    // Basic structure validation
+    if (!proofData.protocol || proofData.protocol !== 'groth16') {
+      this.logger.warn('Invalid proof protocol');
+      return false;
+    }
+
+    if (
+      !proofData.pi_a ||
+      !proofData.pi_b ||
+      !proofData.pi_c ||
+      proofData.pi_a.length !== 2 ||
+      proofData.pi_b.length !== 2 ||
+      proofData.pi_c.length !== 2
+    ) {
+      this.logger.warn('Invalid proof structure');
+      return false;
+    }
+
+    this.logger.debug('Proof structure validated');
 
     // 2. Verify against blockchain state if available
     if (this.blockchainService.isAvailable()) {
@@ -170,16 +157,22 @@ export class ProofVerifierService {
     try {
       this.verificationCount++;
 
-      const proofData = JSON.parse(proof);
-
       // Check if snarkjs proof system is available
       if (this.snarkjsProofService.isAvailable()) {
         this.logger.debug('Using real snarkjs verification');
 
         // Construct public signals array from public inputs
-        // Order must match circuit output order
+        // Order must match circuit: public inputs first, then public outputs
+        // From api_credit_proof_simple.circom line 99:
+        // public [merkleRoot, maxCost, initialDeposit, signalX]
+        // outputs: nullifier, signalY, idCommitment
         const publicSignals = [
+          publicInputs.merkleRoot.replace('0x', ''),
+          publicInputs.maxCost.replace('0x', ''),
+          publicInputs.initialDeposit.replace('0x', ''),
           publicInputs.signalX.replace('0x', ''),
+          publicInputs.nullifier.replace('0x', ''),
+          publicInputs.signalY.replace('0x', ''),
           publicInputs.idCommitment.replace('0x', ''),
         ];
 

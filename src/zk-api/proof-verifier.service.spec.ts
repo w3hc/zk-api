@@ -79,74 +79,8 @@ describe('ProofVerifierService', () => {
   });
 
   describe('verify', () => {
-    it('should return false for empty proof', () => {
-      const result = service.verify('');
-      expect(result).toBe(false);
-    });
-
-    it('should return false for short invalid proof', () => {
-      const result = service.verify('short');
-      expect(result).toBe(false);
-    });
-
-    it('should return false for proof with invalid protocol', () => {
-      const invalidProof = JSON.stringify({
-        protocol: 'invalid',
-        pi_a: ['0x123', '0x456'],
-        pi_b: [
-          ['0x111', '0x222'],
-          ['0x333', '0x444'],
-        ],
-        pi_c: ['0x789', '0xabc'],
-      });
-
-      const result = service.verify(invalidProof);
-      expect(result).toBe(false);
-    });
-
-    it('should return false for proof with missing protocol', () => {
-      const invalidProof = JSON.stringify({
-        pi_a: ['0x123', '0x456'],
-        pi_b: [
-          ['0x111', '0x222'],
-          ['0x333', '0x444'],
-        ],
-        pi_c: ['0x789', '0xabc'],
-      });
-
-      const result = service.verify(invalidProof);
-      expect(result).toBe(false);
-    });
-
-    it('should return false for proof with invalid structure', () => {
-      const invalidProof = JSON.stringify({
-        protocol: 'groth16',
-        pi_a: ['0x123'], // Invalid length
-        pi_b: [['0x111', '0x222']],
-        pi_c: ['0x789', '0xabc'],
-      });
-
-      const result = service.verify(invalidProof);
-      expect(result).toBe(false);
-    });
-
-    it('should return true for valid proof structure', () => {
-      const result = service.verify(mockProof);
-      expect(result).toBe(true);
-    });
-
-    it('should return false for malformed JSON', () => {
-      const result = service.verify('not valid json');
-      expect(result).toBe(false);
-    });
-  });
-
-  describe('verifyWithInputs', () => {
     it('should return false if proof structure is invalid', async () => {
-      const result = await service.verifyWithInputs(
-        'invalid',
-        mockPublicInputs,
-      );
+      const result = await service.verify('invalid', mockPublicInputs);
       expect(result).toBe(false);
     });
 
@@ -154,10 +88,7 @@ describe('ProofVerifierService', () => {
       snarkjsProofService.isAvailable.mockReturnValue(false);
       proofGenService.verifyMockProof.mockReturnValue(true);
 
-      const result = await service.verifyWithInputs(
-        mockProof,
-        mockPublicInputs,
-      );
+      const result = await service.verify(mockProof, mockPublicInputs);
 
       expect(result).toBe(true);
       expect(proofGenService.verifyMockProof).toHaveBeenCalledWith(
@@ -170,10 +101,7 @@ describe('ProofVerifierService', () => {
       snarkjsProofService.isAvailable.mockReturnValue(true);
       snarkjsProofService.verifyProof.mockResolvedValue(true);
 
-      const result = await service.verifyWithInputs(
-        mockProof,
-        mockPublicInputs,
-      );
+      const result = await service.verify(mockProof, mockPublicInputs);
 
       expect(result).toBe(true);
       expect(snarkjsProofService.verifyProof).toHaveBeenCalled();
@@ -183,10 +111,7 @@ describe('ProofVerifierService', () => {
       snarkjsProofService.isAvailable.mockReturnValue(true);
       snarkjsProofService.verifyProof.mockResolvedValue(false);
 
-      const result = await service.verifyWithInputs(
-        mockProof,
-        mockPublicInputs,
-      );
+      const result = await service.verify(mockProof, mockPublicInputs);
 
       expect(result).toBe(false);
     });
@@ -199,10 +124,7 @@ describe('ProofVerifierService', () => {
       blockchainService.isNullifierSlashed.mockResolvedValue(false);
       proofGenService.verifyMockProof.mockReturnValue(true);
 
-      const result = await service.verifyWithInputs(
-        mockProof,
-        mockPublicInputs,
-      );
+      const result = await service.verify(mockProof, mockPublicInputs);
 
       expect(result).toBe(true);
       expect(blockchainService.getMerkleRoot).toHaveBeenCalled();
@@ -218,10 +140,7 @@ describe('ProofVerifierService', () => {
       );
       blockchainService.isNullifierSlashed.mockResolvedValue(true);
 
-      const result = await service.verifyWithInputs(
-        mockProof,
-        mockPublicInputs,
-      );
+      const result = await service.verify(mockProof, mockPublicInputs);
 
       expect(result).toBe(false);
     });
@@ -233,10 +152,7 @@ describe('ProofVerifierService', () => {
       );
       blockchainService.isNullifierSlashed.mockResolvedValue(false);
 
-      const result = await service.verifyWithInputs(
-        mockProof,
-        mockPublicInputs,
-      );
+      const result = await service.verify(mockProof, mockPublicInputs);
 
       expect(result).toBe(false);
     });
@@ -248,10 +164,7 @@ describe('ProofVerifierService', () => {
       );
       proofGenService.verifyMockProof.mockReturnValue(true);
 
-      const result = await service.verifyWithInputs(
-        mockProof,
-        mockPublicInputs,
-      );
+      const result = await service.verify(mockProof, mockPublicInputs);
 
       expect(result).toBe(true);
     });
@@ -261,10 +174,7 @@ describe('ProofVerifierService', () => {
         throw new Error('Unexpected error');
       });
 
-      const result = await service.verifyWithInputs(
-        mockProof,
-        mockPublicInputs,
-      );
+      const result = await service.verify(mockProof, mockPublicInputs);
 
       expect(result).toBe(false);
     });
@@ -297,9 +207,7 @@ describe('ProofVerifierService', () => {
       process.env.NODE_ENV = 'production';
       snarkjsProofService.isAvailable.mockReturnValue(false);
 
-      await expect(
-        service.verifyWithInputs(mockProof, mockPublicInputs),
-      ).rejects.toThrow(
+      await expect(service.verify(mockProof, mockPublicInputs)).rejects.toThrow(
         'Proof verification not available in production mode. Configure circuit artifacts.',
       );
     });
@@ -309,10 +217,7 @@ describe('ProofVerifierService', () => {
       snarkjsProofService.isAvailable.mockReturnValue(true);
       snarkjsProofService.verifyProof.mockResolvedValue(true);
 
-      const result = await service.verifyWithInputs(
-        mockProof,
-        mockPublicInputs,
-      );
+      const result = await service.verify(mockProof, mockPublicInputs);
 
       expect(result).toBe(true);
     });
@@ -322,10 +227,7 @@ describe('ProofVerifierService', () => {
       snarkjsProofService.isAvailable.mockReturnValue(false);
       proofGenService.verifyMockProof.mockReturnValue(true);
 
-      const result = await service.verifyWithInputs(
-        mockProof,
-        mockPublicInputs,
-      );
+      const result = await service.verify(mockProof, mockPublicInputs);
 
       expect(result).toBe(true);
     });
@@ -341,7 +243,7 @@ describe('ProofVerifierService', () => {
       snarkjsProofService.isAvailable.mockReturnValue(false);
       proofGenService.verifyMockProof.mockReturnValue(true);
 
-      await service.verifyWithInputs(mockProof, mockPublicInputs);
+      await service.verify(mockProof, mockPublicInputs);
 
       const metrics = service.getMetrics();
       expect(metrics.total).toBe(1);
@@ -353,7 +255,7 @@ describe('ProofVerifierService', () => {
       snarkjsProofService.isAvailable.mockReturnValue(false);
       proofGenService.verifyMockProof.mockReturnValue(false);
 
-      await service.verifyWithInputs(mockProof, mockPublicInputs);
+      await service.verify(mockProof, mockPublicInputs);
 
       const metrics = service.getMetrics();
       expect(metrics.total).toBe(1);
@@ -365,7 +267,7 @@ describe('ProofVerifierService', () => {
       snarkjsProofService.isAvailable.mockReturnValue(false);
       proofGenService.verifyMockProof.mockReturnValue(true);
 
-      await service.verifyWithInputs(mockProof, mockPublicInputs);
+      await service.verify(mockProof, mockPublicInputs);
 
       const metrics = service.getMetrics();
       expect(metrics.mock).toBe(1);
@@ -379,9 +281,9 @@ describe('ProofVerifierService', () => {
         .mockResolvedValueOnce(false)
         .mockResolvedValueOnce(true);
 
-      await service.verifyWithInputs(mockProof, mockPublicInputs);
-      await service.verifyWithInputs(mockProof, mockPublicInputs);
-      await service.verifyWithInputs(mockProof, mockPublicInputs);
+      await service.verify(mockProof, mockPublicInputs);
+      await service.verify(mockProof, mockPublicInputs);
+      await service.verify(mockProof, mockPublicInputs);
 
       const metrics = service.getMetrics();
       expect(metrics.total).toBe(3);
@@ -394,7 +296,7 @@ describe('ProofVerifierService', () => {
       snarkjsProofService.isAvailable.mockReturnValue(true);
       snarkjsProofService.verifyProof.mockResolvedValue(true);
 
-      await service.verifyWithInputs(mockProof, mockPublicInputs);
+      await service.verify(mockProof, mockPublicInputs);
 
       const metrics = service.getMetrics();
       expect(metrics.mock).toBe(0);

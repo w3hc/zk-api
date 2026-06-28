@@ -148,8 +148,16 @@ export class ZkApiService {
       throw new ForbiddenException('Nullifier already used');
     }
 
-    // 3. Verify ZK proof
-    const valid = this.proofVerifier.verify(req.proof);
+    // 3. Verify ZK proof with cryptographic verification and public inputs
+    const valid = await this.proofVerifier.verify(req.proof, {
+      merkleRoot: req.merkleRoot,
+      maxCost: req.maxCost,
+      initialDeposit: req.initialDeposit,
+      signalX: req.signal.x,
+      nullifier: req.nullifier,
+      signalY: req.signal.y,
+      idCommitment: req.idCommitment,
+    });
     if (!valid) {
       throw new UnauthorizedException('Invalid ZK proof');
     }

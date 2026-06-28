@@ -51,7 +51,7 @@ async function generateProofAndRequest() {
 
   const proof = JSON.stringify(proofData);
 
-  // Prepare API request
+  // Prepare API request with all public inputs (C2 fix)
   const apiRequest = {
     payload: "What does 苟全性命於亂世，不求聞達於諸侯。mean?",
     nullifier: '0x' + nullifier.toString(16).padStart(64, '0'),
@@ -61,6 +61,10 @@ async function generateProofAndRequest() {
     },
     proof: proof,
     maxCost: ethers.parseEther('0.001').toString(),
+    merkleRoot: ethers.hexlify(ethers.randomBytes(32)),
+    initialDeposit: ethers.parseEther('0.1').toString(),
+    ticketIndex: ticketIndex.toString(),
+    idCommitment: '0x' + idCommitment.toString(16).padStart(64, '0'),
   };
 
   console.log('📤 Making API request...');

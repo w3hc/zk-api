@@ -68,6 +68,10 @@ Submit anonymous external API request with Zero-Knowledge proof of solvency (exa
     y: string;                  // RLN signal y component
   };
   maxCost: string;              // Maximum cost willing to pay (in wei)
+  merkleRoot: string;           // Merkle root from on-chain state
+  initialDeposit: string;       // Initial deposit amount (in wei)
+  ticketIndex: string;          // Ticket index for this request
+  idCommitment: string;         // Identity commitment (Hash of secret key)
   model?: string;               // Example: claude-opus-4.6, claude-sonnet-4.6, claude-haiku-4.5 (default: sonnet)
 }
 ```
@@ -118,6 +122,10 @@ curl -k -X POST https://localhost:3000/zk-api/request \
       "y": "11111111111111111111111111111111"
     },
     "maxCost": "1000000000000000",
+    "merkleRoot": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    "initialDeposit": "10000000000000000",
+    "ticketIndex": "0",
+    "idCommitment": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     "model": "claude-sonnet-4.6"
   }'
 
@@ -149,10 +157,11 @@ curl -k -X POST https://localhost:3000/zk-api/request \
    - Different message: Double-spend → Secret key extracted → RLN stake slashed
 
 2. **ZK Proof Requirements**: The proof must demonstrate:
-   - Identity commitment is in the Merkle tree (membership)
-   - Sufficient balance for this request (solvency)
+   - Identity commitment is in the Merkle tree (membership: `merkleRoot`)
+   - Sufficient balance for this request (solvency: `(ticketIndex+1)*maxCost ≤ initialDeposit`)
    - All previous refund tickets are valid (EdDSA signatures)
    - Correct RLN signal generation (nullifier = Hash(a), y = k + a*x)
+   - All public inputs are cryptographically bound to the proof
 
 3. **Cost Protection**: Set `maxCost` to protect against unexpected price changes
 
