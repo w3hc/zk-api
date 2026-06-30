@@ -1,9 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UsageDto {
-  // Universal fields
-  @ApiProperty({ description: 'Total billable units' })
-  units: number;
+  // H-1 Fix: Quantized cost classes instead of exact values
+  // This prevents linking requests based on fine-grained token/cost metadata
+
+  @ApiProperty({
+    description:
+      'Quantized unit class (prevents linkability via exact token counts)',
+    enum: ['tiny', 'small', 'medium', 'large', 'xlarge'],
+  })
+  unitClass: 'tiny' | 'small' | 'medium' | 'large' | 'xlarge';
 
   @ApiProperty({
     description: 'Unit type',
@@ -26,21 +32,12 @@ export class UsageDto {
     | 'credits'
     | 'custom';
 
-  @ApiProperty({ description: 'Calculated cost in USD' })
-  costUSD: number;
-
-  // Optional breakdown (provider-specific)
-  @ApiPropertyOptional({ description: 'Breakdown of usage by category' })
-  breakdown?: {
-    input?: number; // Input tokens/units
-    output?: number; // Output tokens/units
-    cacheRead?: number; // Cached units (discounted)
-    cacheWrite?: number; // Cache creation units
-    storage?: number; // Storage units (GB-months)
-    transfer?: number; // Data transfer (GB)
-    compute?: number; // Compute seconds
-    [key: string]: number | undefined; // Provider-specific fields
-  };
+  @ApiProperty({
+    description:
+      'Quantized cost class (prevents linkability via exact cost tracking)',
+    enum: ['micro', 'small', 'medium', 'large', 'xlarge'],
+  })
+  costClass: 'micro' | 'small' | 'medium' | 'large' | 'xlarge';
 
   // Metadata
   @ApiPropertyOptional({ description: 'Provider ID' })
@@ -52,16 +49,33 @@ export class UsageDto {
   @ApiPropertyOptional({ description: 'Timestamp' })
   timestamp?: Date;
 
-  // Deprecated fields (backwards compatibility)
+  // REMOVED fields for H-1 fix:
+  // - units: exact token count (linkable)
+  // - costUSD: exact cost (linkable)
+  // - breakdown: input/output token breakdown (linkable)
+  // - inputTokens/outputTokens: deprecated and linkable
+
+  // Internal-only fields (not exposed in API response)
+  // Used for actual billing calculation
   @ApiPropertyOptional({
-    description: 'Number of input tokens (deprecated, use breakdown.input)',
+    description: 'Internal: actual units for billing (not returned to client)',
   })
-  inputTokens?: number;
+  _internalUnits?: number;
 
   @ApiPropertyOptional({
-    description: 'Number of output tokens (deprecated, use breakdown.output)',
+    description: 'Internal: actual cost for billing (not returned to client)',
   })
-  outputTokens?: number;
+  _internalCostUSD?: number;
+
+  @ApiPropertyOptional({
+    description: 'Internal: input tokens for billing (not returned to client)',
+  })
+  _internalInputTokens?: number;
+
+  @ApiPropertyOptional({
+    description: 'Internal: output tokens for billing (not returned to client)',
+  })
+  _internalOutputTokens?: number;
 }
 
 export class RefundTicketDto {

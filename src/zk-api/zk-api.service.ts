@@ -15,6 +15,8 @@ import { EthRateOracleService } from './eth-rate-oracle.service';
 import { RefundSignerService } from './refund-signer.service';
 import { SlashingService } from './slashing.service';
 import { SlashingProofService } from './slashing-proof.service';
+import { quantizeCost, quantizeUnits } from './utils/cost-quantization.util';
+import { padResponse } from './utils/response-padding.util';
 
 // Example: Claude API Pricing (USD per million tokens)
 // This can be configured for any API service with similar pricing models
@@ -214,10 +216,10 @@ export class ZkApiService {
     // 5. Execute API request (Claude example)
     const response = await this.executeClaudeRequest(req.payload, model);
 
-    // 6. Calculate actual cost in ETH
+    // 6. Calculate actual cost in ETH (internal only)
     const actualCost = await this.calculateCostInETH(
-      response.usage.inputTokens ?? response.usage.breakdown?.input ?? 0,
-      response.usage.outputTokens ?? response.usage.breakdown?.output ?? 0,
+      response.usage._internalInputTokens ?? 0,
+      response.usage._internalOutputTokens ?? 0,
       model,
     );
 
@@ -234,11 +236,25 @@ export class ZkApiService {
       `Request processed. Cost: ${actualCost} wei, Refund: ${refundValue} wei`,
     );
 
+    // H-1 Fix: Apply response padding to prevent size-based linkability
+    const paddedResponse = padResponse(response.content);
+
+    // H-1 Fix: Remove internal fields before returning to client
+    const sanitizedUsage: UsageDto = {
+      unitClass: response.usage.unitClass,
+      unitType: response.usage.unitType,
+      costClass: response.usage.costClass,
+      provider: response.usage.provider,
+      endpoint: response.usage.endpoint,
+      timestamp: response.usage.timestamp,
+      // _internalUnits and _internalCostUSD are intentionally excluded
+    };
+
     return {
-      response: response.content,
+      response: paddedResponse,
       actualCost: actualCost.toString(),
       refundTicket,
-      usage: response.usage,
+      usage: sanitizedUsage,
     };
   }
 
@@ -345,19 +361,28 @@ export class ZkApiService {
       const outputTokens = message.usage.output_tokens;
       const totalTokens = inputTokens + outputTokens;
 
+      // H-1 Fix: Calculate actual cost (internal only)
+      const pricing = CLAUDE_PRICING[model];
+      const actualCostUSD =
+        (inputTokens / 1_000_000) * pricing.input +
+        (outputTokens / 1_000_000) * pricing.output;
+
+      // H-1 Fix: Quantize units and cost
+      const { unitClass } = quantizeUnits(totalTokens);
+      const { costClass } = quantizeCost(actualCostUSD);
+
       return {
         content: textContent,
         usage: {
-          units: totalTokens,
+          unitClass,
           unitType: 'tokens',
-          costUSD: 0, // Will be calculated later
-          breakdown: {
-            input: inputTokens,
-            output: outputTokens,
-          },
-          // Backwards compatibility
-          inputTokens,
-          outputTokens,
+          costClass,
+          // Internal fields for billing (not exposed to client)
+          _internalUnits: totalTokens,
+          _internalCostUSD: actualCostUSD,
+          // Store individual token counts for cost calculation
+          _internalInputTokens: inputTokens,
+          _internalOutputTokens: outputTokens,
         },
       };
     } catch (error) {
@@ -385,19 +410,28 @@ export class ZkApiService {
 
     const mockResponse = `This is a mock Claude ${model} response to: "${payload.slice(0, 50)}..."`;
 
+    // H-1 Fix: Calculate actual cost (internal only)
+    const pricing = CLAUDE_PRICING[model];
+    const actualCostUSD =
+      (inputTokens / 1_000_000) * pricing.input +
+      (outputTokens / 1_000_000) * pricing.output;
+
+    // H-1 Fix: Quantize units and cost
+    const { unitClass } = quantizeUnits(totalTokens);
+    const { costClass } = quantizeCost(actualCostUSD);
+
     return {
       content: mockResponse,
       usage: {
-        units: totalTokens,
+        unitClass,
         unitType: 'tokens',
-        costUSD: 0, // Will be calculated later
-        breakdown: {
-          input: inputTokens,
-          output: outputTokens,
-        },
-        // Backwards compatibility
-        inputTokens,
-        outputTokens,
+        costClass,
+        // Internal fields for billing (not exposed to client)
+        _internalUnits: totalTokens,
+        _internalCostUSD: actualCostUSD,
+        // Store individual token counts for cost calculation
+        _internalInputTokens: inputTokens,
+        _internalOutputTokens: outputTokens,
       },
     };
   }
