@@ -436,6 +436,72 @@ contract ZkApiCreditsTest is Test {
         assertTrue(rootBefore != rootAfter);
     }
 
+    function test_MerkleProofGeneration_MultipleLeaves() public {
+        // This test validates H-2 fix: Merkle proof generation must work for >2 leaves
+        // Create 5 identity commitments
+        bytes32 id1 = bytes32(PoseidonHasher.hash(uint256(keccak256('user1'))));
+        bytes32 id2 = bytes32(PoseidonHasher.hash(uint256(keccak256('user2'))));
+        bytes32 id3 = bytes32(PoseidonHasher.hash(uint256(keccak256('user3'))));
+        bytes32 id4 = bytes32(PoseidonHasher.hash(uint256(keccak256('user4'))));
+        bytes32 id5 = bytes32(PoseidonHasher.hash(uint256(keccak256('user5'))));
+
+        // Create funded depositor addresses
+        address depositor1 = makeAddr('depositor1');
+        address depositor2 = makeAddr('depositor2');
+        address depositor3 = makeAddr('depositor3');
+        address depositor4 = makeAddr('depositor4');
+        address depositor5 = makeAddr('depositor5');
+
+        vm.deal(depositor1, 1 ether);
+        vm.deal(depositor2, 1 ether);
+        vm.deal(depositor3, 1 ether);
+        vm.deal(depositor4, 1 ether);
+        vm.deal(depositor5, 1 ether);
+
+        // Deposit all 5
+        vm.prank(depositor1);
+        zkApi.deposit{value: 0.01 ether}(id1);
+
+        vm.prank(depositor2);
+        zkApi.deposit{value: 0.01 ether}(id2);
+
+        vm.prank(depositor3);
+        zkApi.deposit{value: 0.01 ether}(id3);
+
+        vm.prank(depositor4);
+        zkApi.deposit{value: 0.01 ether}(id4);
+
+        vm.prank(depositor5);
+        zkApi.deposit{value: 0.01 ether}(id5);
+
+        bytes32 storedRoot = zkApi.merkleRoot();
+
+        // Test proof generation and verification for each leaf
+        for (uint256 i = 0; i < 5; i++) {
+            (bytes32[20] memory pathElements, uint8[20] memory pathIndices) = zkApi.getMerkleProof(i);
+
+            // Get the leaf
+            bytes32 leaf = zkApi.identityCommitments(i);
+
+            // Manually verify the proof reconstructs the root
+            bytes32 computedHash = leaf;
+            for (uint256 level = 0; level < 20; level++) {
+                bytes32 sibling = pathElements[level];
+
+                if (pathIndices[level] == 0) {
+                    // Current node is left child
+                    computedHash = bytes32(PoseidonHasher.hash(uint256(computedHash), uint256(sibling)));
+                } else {
+                    // Current node is right child
+                    computedHash = bytes32(PoseidonHasher.hash(uint256(sibling), uint256(computedHash)));
+                }
+            }
+
+            // The computed root must match the stored root
+            assertEq(computedHash, storedRoot, "Merkle proof verification failed for leaf index");
+        }
+    }
+
     // ============ Policy Violation Slashing Tests ============
 
     function test_PolicyViolationSlashing_Success() public {
