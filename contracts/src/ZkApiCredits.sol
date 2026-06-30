@@ -59,6 +59,10 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     /// @notice Filled subtrees at each level for incremental Merkle tree
     bytes32[20] public filledSubtrees;
 
+    /// @notice Storage for all tree nodes: level => index => hash
+    /// @dev Required for proper Merkle proof generation
+    mapping(uint256 => mapping(uint256 => bytes32)) private treeNodes;
+
     /// @notice Mapping of slashed nullifiers (prevents re-use after slashing)
     mapping(bytes32 => bool) public slashedNullifiers;
 
@@ -617,29 +621,46 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         uint256 leafIndex = identityCommitments.length - 1;
         bytes32 currentHash = identityCommitments[leafIndex];
 
+        // Store the leaf node at level 0
+        treeNodes[0][leafIndex] = currentHash;
+
         // Incrementally update the Merkle tree
         // For each level, hash with the appropriate sibling
+        uint256 currentIndex = leafIndex;
         for (uint256 i = 0; i < TREE_DEPTH; i++) {
-            // Check if current index is left (0) or right (1) child
-            if (leafIndex % 2 == 0) {
-                // Left child: hash(current, zero)
-                // Store current in filledSubtrees for future right siblings
+            bool isLeft = currentIndex % 2 == 0;
+            uint256 siblingIndex = isLeft ? currentIndex + 1 : currentIndex - 1;
+
+            bytes32 left;
+            bytes32 right;
+
+            if (isLeft) {
+                left = currentHash;
+                // For right sibling, check if it exists in treeNodes, otherwise use zero
+                right = treeNodes[i][siblingIndex] != bytes32(0)
+                    ? treeNodes[i][siblingIndex]
+                    : zeros[i];
+                // Store current in filledSubtrees for compatibility
                 filledSubtrees[i] = currentHash;
-                currentHash = bytes32(
-                    PoseidonHasher.hash(uint256(currentHash), uint256(zeros[i]))
-                );
             } else {
-                // Right child: hash(filledSubtree, current)
-                currentHash = bytes32(
-                    PoseidonHasher.hash(
-                        uint256(filledSubtrees[i]),
-                        uint256(currentHash)
-                    )
-                );
+                // For left sibling, it must exist (we always fill left to right)
+                left = treeNodes[i][siblingIndex] != bytes32(0)
+                    ? treeNodes[i][siblingIndex]
+                    : filledSubtrees[i];
+                right = currentHash;
             }
 
+            // Compute parent hash
+            currentHash = bytes32(
+                PoseidonHasher.hash(uint256(left), uint256(right))
+            );
+
+            // Store parent node
+            uint256 parentIndex = currentIndex / 2;
+            treeNodes[i + 1][parentIndex] = currentHash;
+
             // Move to parent level
-            leafIndex = leafIndex / 2;
+            currentIndex = parentIndex;
         }
 
         merkleRoot = currentHash;
@@ -661,22 +682,16 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         uint256 currentIndex = _leafIndex;
 
         for (uint256 i = 0; i < TREE_DEPTH; i++) {
-            pathIndices[i] = uint8(currentIndex % 2);
+            bool isLeft = currentIndex % 2 == 0;
+            pathIndices[i] = isLeft ? 0 : 1;
 
-            if (currentIndex % 2 == 0) {
-                // Left child, sibling is on the right
-                if (currentIndex + 1 < identityCommitments.length) {
-                    // Sibling exists, calculate it
-                    pathElements[i] = _getNodeHash(currentIndex + 1, i);
-                } else {
-                    // No sibling, use zero
-                    pathElements[i] = zeros[i];
-                }
-            } else {
-                // Right child, sibling is on the left
-                pathElements[i] = _getNodeHash(currentIndex - 1, i);
-            }
+            // Calculate sibling index at current level
+            uint256 siblingIndex = isLeft ? currentIndex + 1 : currentIndex - 1;
 
+            // Get sibling hash from stored nodes
+            pathElements[i] = _getNodeHash(siblingIndex, i);
+
+            // Move to parent level
             currentIndex = currentIndex / 2;
         }
 
@@ -684,22 +699,17 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     }
 
     /**
-     * @notice Internal helper to compute hash of a node at given level
-     * @dev Reconstructs node hash from leaf index and level
+     * @notice Internal helper to retrieve hash of a node at given level and index
+     * @dev Returns stored node hash or zero hash if node doesn't exist
+     * @param _index Node index at the given level (not leaf index)
+     * @param _level Tree level (0 = leaves, TREE_DEPTH = root)
      */
-    function _getNodeHash(uint256 _leafIndex, uint256 _level) internal view returns (bytes32) {
-        if (_level == 0) {
-            // Base case: return the leaf
-            return identityCommitments[_leafIndex];
-        }
+    function _getNodeHash(uint256 _index, uint256 _level) internal view returns (bytes32) {
+        // Check if node exists in storage
+        bytes32 node = treeNodes[_level][_index];
 
-        // For higher levels, we need to check filledSubtrees
-        // This is a simplified version - full implementation would cache all intermediate nodes
-        if (_leafIndex >= identityCommitments.length) {
-            return zeros[_level];
-        }
-
-        return filledSubtrees[_level];
+        // If node exists, return it; otherwise return zero hash for that level
+        return node != bytes32(0) ? node : zeros[_level];
     }
 
 

@@ -538,8 +538,8 @@ This relies on economic incentives:
    - Proper 20-level incremental Merkle tree using Poseidon hash
    - Matches circuit's `MerkleTreeChecker` structure exactly
    - Public `getMerkleProof()` function for client-side proof generation
-   - Efficient updates with `filledSubtrees` optimization
-   - See [ZkApiCredits.sol:578-665](../contracts/src/ZkApiCredits.sol#L578-L665)
+   - Full node storage in `treeNodes` mapping for correct proof generation
+   - See [ZkApiCredits.sol:620-719](../contracts/src/ZkApiCredits.sol#L620-L719)
 
 5. **Security audit**
    - Circuit security audit
