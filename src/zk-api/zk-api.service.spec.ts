@@ -10,6 +10,7 @@ import { EthRateOracleService } from './eth-rate-oracle.service';
 import { RefundSignerService } from './refund-signer.service';
 import { BlockchainService } from './blockchain.service';
 import { SlashingService } from './slashing.service';
+import { SlashingProofService } from './slashing-proof.service';
 import { ZkApiRequestDto } from './dto/api-request.dto';
 import { SecretsService } from '../config/secrets.service';
 import { TeePlatformService } from '../attestation/tee-platform.service';
@@ -73,6 +74,17 @@ describe('ZkApiService', () => {
             slashDoubleSpend: jest.fn().mockResolvedValue(null),
             getContractAddress: jest.fn().mockReturnValue(null),
             getSlasherAddress: jest.fn().mockReturnValue(null),
+          },
+        },
+        {
+          provide: SlashingProofService,
+          useValue: {
+            initialize: jest.fn().mockResolvedValue(true),
+            isAvailable: jest.fn().mockReturnValue(false),
+            generateSlashingProof: jest.fn().mockResolvedValue({
+              proof: [],
+              publicSignals: [],
+            }),
           },
         },
         {

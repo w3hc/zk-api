@@ -14,6 +14,7 @@ import { ProofVerifierService } from './proof-verifier.service';
 import { EthRateOracleService } from './eth-rate-oracle.service';
 import { RefundSignerService } from './refund-signer.service';
 import { SlashingService } from './slashing.service';
+import { SlashingProofService } from './slashing-proof.service';
 
 // Example: Claude API Pricing (USD per million tokens)
 // This can be configured for any API service with similar pricing models
@@ -44,6 +45,7 @@ export class ZkApiService {
     private readonly ethRateOracle: EthRateOracleService,
     private readonly refundSigner: RefundSignerService,
     private readonly slashingService: SlashingService,
+    private readonly slashingProofService: SlashingProofService,
   ) {
     // Example: Initialize Claude API client
     // Replace with your own API service client initialization
@@ -121,11 +123,47 @@ export class ZkApiService {
 
         if (this.slashingService.isEnabled()) {
           try {
+            // Get metadata from stored signal
+            const ticketIndex =
+              existingSignal.ticketIndex || req.ticketIndex || '0';
+            const idCommitment =
+              existingSignal.idCommitment || req.idCommitment;
+
+            if (!idCommitment) {
+              throw new Error(
+                'Missing idCommitment - cannot generate slashing proof',
+              );
+            }
+
+            // Strip 0x prefix from hex strings for circuit input
+            const stripHex = (hex: string) =>
+              hex.startsWith('0x') ? hex.slice(2) : hex;
+
+            // Generate ZK proof of correct secret key extraction
+            this.logger.log('Generating slashing proof...');
+            const { proof, publicSignals } =
+              await this.slashingProofService.generateSlashingProof({
+                signal1_x: existingSignal.x,
+                signal1_y: existingSignal.y,
+                signal2_x: req.signal.x,
+                signal2_y: req.signal.y,
+                secretKey: stripHex(secretKey),
+                nullifier: stripHex(req.nullifier),
+                ticketIndex: ticketIndex,
+              });
+
+            this.logger.log('Slashing proof generated successfully');
+
+            // Submit transaction with proof
             const txHash = await this.slashingService.slashDoubleSpend(
               secretKey,
               req.nullifier,
+              idCommitment,
               existingSignal,
               req.signal,
+              ticketIndex,
+              proof,
+              publicSignals,
             );
             this.logger.log(
               `Slashing transaction submitted: ${txHash || 'disabled'}`,
@@ -164,11 +202,13 @@ export class ZkApiService {
     }
 
     // 4. Store nullifier to prevent reuse
-    // Also store payload hash for policy violation proofs
+    // Also store payload hash for policy violation proofs and metadata for double-spend slashing
     const payloadHash = this.hashPayload(req.payload);
     this.nullifierStore.set(req.nullifier, {
       ...req.signal,
       payloadHash,
+      ticketIndex: req.ticketIndex,
+      idCommitment: req.idCommitment,
     });
 
     // 5. Execute API request (Claude example)

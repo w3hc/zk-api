@@ -14,6 +14,8 @@ interface StoredSignal {
   timestamp: number;
   rlnShare_a?: string; // RLN share 'a' for policy violation proofs
   payloadHash?: string; // Hash of the payload for policy violation evidence
+  ticketIndex?: string; // Ticket index for double-spend proof generation
+  idCommitment?: string; // Identity commitment for double-spend proof generation
 }
 
 interface RefundRedemption {
@@ -32,6 +34,8 @@ interface NullifierRow {
   timestamp: number;
   rln_share_a: string | null;
   payload_hash: string | null;
+  ticket_index: string | null;
+  id_commitment: string | null;
 }
 
 interface RefundRow {
@@ -91,7 +95,9 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
         y TEXT NOT NULL,
         timestamp INTEGER NOT NULL,
         rln_share_a TEXT,
-        payload_hash TEXT
+        payload_hash TEXT,
+        ticket_index TEXT,
+        id_commitment TEXT
       );
 
       CREATE INDEX IF NOT EXISTS idx_nullifiers_timestamp ON nullifiers(timestamp);
@@ -99,6 +105,7 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
 
     // Migration: Add new columns if they don't exist
     this.migrateAddPolicyViolationColumns();
+    this.migrateAddSlashingColumns();
 
     // Create redeemed_refunds table
     this.db.exec(`
@@ -164,6 +171,39 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
       }
     } catch (error) {
       this.logger.error('Failed to migrate policy violation columns', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Migration: Add columns for double-spend slashing proof generation
+   */
+  private migrateAddSlashingColumns(): void {
+    try {
+      const columns = this.db
+        .prepare("PRAGMA table_info('nullifiers')")
+        .all() as Array<{ name: string }>;
+
+      const hasTicketIndex = columns.some((col) => col.name === 'ticket_index');
+      const hasIdCommitment = columns.some(
+        (col) => col.name === 'id_commitment',
+      );
+
+      if (!hasTicketIndex) {
+        this.logger.log(
+          'Adding ticket_index column for double-spend slashing proofs',
+        );
+        this.db.exec('ALTER TABLE nullifiers ADD COLUMN ticket_index TEXT');
+      }
+
+      if (!hasIdCommitment) {
+        this.logger.log(
+          'Adding id_commitment column for double-spend slashing proofs',
+        );
+        this.db.exec('ALTER TABLE nullifiers ADD COLUMN id_commitment TEXT');
+      }
+    } catch (error) {
+      this.logger.error('Failed to migrate slashing columns', error);
       throw error;
     }
   }
@@ -242,7 +282,7 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
    */
   get(nullifier: string): StoredSignal | null {
     const stmt = this.db.prepare(
-      'SELECT x, y, timestamp, rln_share_a, payload_hash FROM nullifiers WHERE nullifier = ?',
+      'SELECT x, y, timestamp, rln_share_a, payload_hash, ticket_index, id_commitment FROM nullifiers WHERE nullifier = ?',
     );
     const row = stmt.get(nullifier) as NullifierRow | undefined;
 
@@ -254,6 +294,8 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
       timestamp: row.timestamp,
       rlnShare_a: row.rln_share_a || undefined,
       payloadHash: row.payload_hash || undefined,
+      ticketIndex: row.ticket_index || undefined,
+      idCommitment: row.id_commitment || undefined,
     };
   }
 
@@ -262,11 +304,18 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
    */
   set(
     nullifier: string,
-    signal: { x: string; y: string; rlnShare_a?: string; payloadHash?: string },
+    signal: {
+      x: string;
+      y: string;
+      rlnShare_a?: string;
+      payloadHash?: string;
+      ticketIndex?: string;
+      idCommitment?: string;
+    },
   ): void {
     const timestamp = Date.now();
     const stmt = this.db.prepare(
-      'INSERT OR REPLACE INTO nullifiers (nullifier, x, y, timestamp, rln_share_a, payload_hash) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT OR REPLACE INTO nullifiers (nullifier, x, y, timestamp, rln_share_a, payload_hash, ticket_index, id_commitment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     );
     stmt.run(
       nullifier,
@@ -275,6 +324,8 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
       timestamp,
       signal.rlnShare_a || null,
       signal.payloadHash || null,
+      signal.ticketIndex || null,
+      signal.idCommitment || null,
     );
     this.logger.debug(`Stored nullifier: ${nullifier.slice(0, 10)}...`);
   }

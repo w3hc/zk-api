@@ -11,6 +11,7 @@ import { ProofGenService } from './proof-gen.service';
 import { MerkleTreeService } from './merkle-tree.service';
 import { SnarkjsProofService } from './snarkjs-proof.service';
 import { SlashingService } from './slashing.service';
+import { SlashingProofService } from './slashing-proof.service';
 import { SecretsService } from '../config/secrets.service';
 import { TeePlatformService } from '../attestation/tee-platform.service';
 import { ProviderRegistryService } from '../providers';
@@ -33,6 +34,7 @@ import { ClaudeProvider } from '../providers/claude';
     BlockchainService,
     MerkleTreeService,
     SlashingService,
+    SlashingProofService,
     SecretsService,
     TeePlatformService,
     ProviderRegistryService,

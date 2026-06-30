@@ -77,15 +77,23 @@ export class SlashingService {
    * Submit a slashing transaction for double-spend
    * @param secretKey The extracted secret key (0x-prefixed hex string)
    * @param nullifier The nullifier used in both signals
+   * @param idCommitment The user's identity commitment
    * @param signal1 First RLN signal
    * @param signal2 Second RLN signal
+   * @param ticketIndex Ticket index from the request
+   * @param proof ZK proof of correct secret key extraction
+   * @param publicSignals Public signals for the proof
    * @returns Transaction hash if successful
    */
   async slashDoubleSpend(
     secretKey: string,
     nullifier: string,
+    idCommitment: string,
     signal1: RlnSignal,
     signal2: RlnSignal,
+    ticketIndex: string,
+    proof: string[],
+    publicSignals: string[],
   ): Promise<string | null> {
     if (!this.contract) {
       this.logger.warn(
@@ -99,24 +107,27 @@ export class SlashingService {
         `Submitting slashing transaction for secret key: ${secretKey.slice(0, 10)}...`,
       );
 
-      // Convert signals to the format expected by the contract
-      const signal1Struct = {
-        x: BigInt(signal1.x),
-        y: BigInt(signal1.y),
-      };
-      const signal2Struct = {
-        x: BigInt(signal2.x),
-        y: BigInt(signal2.y),
-      };
+      this.logger.debug('Slashing parameters:', {
+        secretKey: secretKey.slice(0, 10) + '...',
+        nullifier: nullifier.slice(0, 10) + '...',
+        idCommitment: idCommitment.slice(0, 10) + '...',
+        proofLength: proof.length,
+        publicSignalsLength: publicSignals.length,
+      });
 
-      // Submit transaction
+      // Convert to BigInt arrays for contract call
+      const proofBigInts = proof.map((p) => BigInt(p));
+      const publicSignalsBigInts = publicSignals.map((s) => BigInt(s));
+
+      // Submit transaction with ZK proof
+      // Contract signature: slashDoubleSpend(bytes32 _secretKey, bytes32 _nullifier, bytes32 _idCommitment, uint256[8] _proof, uint256[4] _publicSignals)
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const tx = await this.contract.slashDoubleSpend(
         secretKey,
         nullifier,
-        nullifier, // Same nullifier for both
-        signal1Struct,
-        signal2Struct,
+        idCommitment,
+        proofBigInts,
+        publicSignalsBigInts,
       );
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
