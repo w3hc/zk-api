@@ -68,9 +68,10 @@ forge test --gas-report
 
 **Test Results:**
 ```
-✅ All 16 tests passing
+✅ All 18 tests passing
 ✅ Identity commitments use Poseidon hash
-✅ Merkle tree uses Poseidon hash
+✅ Merkle tree uses Poseidon hash with full node storage
+✅ Merkle proof generation verified for >2 leaves
 ✅ Refund signatures verified with Poseidon hash
 ```
 
@@ -165,9 +166,8 @@ Current gas costs (approximate):
 ⚠️ **Not yet audited** - Do not use in production without professional audit.
 
 ### Known Limitations
-1. **Simplified Merkle tree** - Uses basic Poseidon hashing, not optimized incremental tree
-2. **Placeholder EdDSA verification** - Accepts all non-zero signatures (TODO: real verification)
-3. **No proof verification** - ZK proof verification not yet implemented onchain
+1. **Merkle tree storage cost** - Stores all nodes on-chain for correct proof generation (gas intensive for large trees)
+2. **Admin privileges** - Contract owner can change verifier contracts and minimum stakes
 
 ### Security Model
 - **RLN stake** - Claimable by anyone proving double-spend
