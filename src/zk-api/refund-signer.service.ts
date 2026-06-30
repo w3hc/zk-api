@@ -50,11 +50,24 @@ export class RefundSignerService {
       try {
         privateKeyHex = this.secretsService.get('OPERATOR_PRIVATE_KEY');
       } catch {
-        // Fallback for local dev if not in secrets
+        // In production, OPERATOR_PRIVATE_KEY must be set
+        const isProduction = process.env.NODE_ENV === 'production';
+
+        if (isProduction) {
+          this.logger.error(
+            'OPERATOR_PRIVATE_KEY not found in production environment',
+          );
+          throw new Error(
+            'OPERATOR_PRIVATE_KEY must be configured in production. ' +
+            'Refusing to use deterministic fallback key.',
+          );
+        }
+
+        // Development-only fallback
         privateKeyHex =
           process.env.OPERATOR_PRIVATE_KEY || this.generatePrivateKey();
         this.logger.warn(
-          'OPERATOR_PRIVATE_KEY not found in SecretsService, using fallback',
+          'OPERATOR_PRIVATE_KEY not found in SecretsService, using DEV-ONLY fallback',
         );
       }
 
