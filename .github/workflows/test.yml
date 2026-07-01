@@ -86,8 +86,6 @@ jobs:
 
       - name: Start API server
         run: node dist/src/main.js &
-        env:
-          NODE_ENV: production
 
       - name: Wait for API server
         run: |
