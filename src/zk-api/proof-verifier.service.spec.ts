@@ -9,7 +9,6 @@ import { SnarkjsProofService } from './snarkjs-proof.service';
 describe('ProofVerifierService', () => {
   let service: ProofVerifierService;
   let blockchainService: jest.Mocked<BlockchainService>;
-  let proofGenService: jest.Mocked<ProofGenService>;
   let snarkjsProofService: jest.Mocked<SnarkjsProofService>;
   let loggerErrorSpy: jest.SpyInstance;
 
@@ -61,7 +60,6 @@ describe('ProofVerifierService', () => {
 
     service = module.get<ProofVerifierService>(ProofVerifierService);
     blockchainService = module.get(BlockchainService);
-    proofGenService = module.get(ProofGenService);
     snarkjsProofService = module.get(SnarkjsProofService);
 
     // Suppress expected error logs
@@ -193,9 +191,9 @@ describe('ProofVerifierService', () => {
       expect(snarkjsProofService.verifyProof).toHaveBeenCalledWith(
         expect.objectContaining({
           protocol: 'groth16',
-          pi_a: expect.any(Array),
-          pi_b: expect.any(Array),
-          pi_c: expect.any(Array),
+          pi_a: expect.any(Array) as unknown[],
+          pi_b: expect.any(Array) as unknown[][],
+          pi_c: expect.any(Array) as unknown[],
         }),
         expect.arrayContaining([
           mockPublicInputs.merkleRoot.replace('0x', ''),
@@ -205,7 +203,7 @@ describe('ProofVerifierService', () => {
           mockPublicInputs.nullifier.replace('0x', ''),
           mockPublicInputs.signalY.replace('0x', ''),
           mockPublicInputs.idCommitment.replace('0x', ''),
-        ]),
+        ]) as string[],
       );
     });
   });
