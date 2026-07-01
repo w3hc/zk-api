@@ -4,7 +4,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-require-imports */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { join } from 'path';
 import { existsSync } from 'fs';
 
@@ -15,7 +15,7 @@ import { existsSync } from 'fs';
  * Requires a completed trusted setup (zkey + verification key).
  */
 @Injectable()
-export class SnarkjsProofService {
+export class SnarkjsProofService implements OnModuleInit {
   private readonly logger = new Logger(SnarkjsProofService.name);
   private snarkjs: any;
   private vKey: any;
@@ -36,6 +36,13 @@ export class SnarkjsProofService {
       process.cwd(),
       'circuits/build/api_credit_proof_test.zkey',
     );
+  }
+
+  /**
+   * NestJS lifecycle hook - initialize the service when module loads
+   */
+  async onModuleInit() {
+    await this.initialize();
   }
 
   /**
@@ -84,6 +91,9 @@ export class SnarkjsProofService {
 
       this.isSetup = true;
       this.logger.log('SnarkJS proof system initialized successfully');
+      this.logger.log(
+        `Loaded vKey delta[0][0]: ${this.vKey.vk_delta_2[0][0].substring(0, 20)}...`,
+      );
       return Promise.resolve(true);
     } catch (error) {
       this.logger.error('Failed to initialize snarkjs', error);
@@ -160,16 +170,40 @@ export class SnarkjsProofService {
     }
 
     try {
+      this.logger.debug('Verifying proof with public signals:', publicSignals);
+      this.logger.debug('Proof data:', JSON.stringify(proof));
+
+      // Convert proof from API format (projective coordinates with z) to snarkjs format (affine)
+      // API format: pi_a = [x, y, z], snarkjs expects: pi_a = [x, y]
+      // Also, pi_b coordinates are in reverse order in snarkjs
+      const snarkjsProof = {
+        pi_a: [proof.pi_a[0], proof.pi_a[1]],
+        pi_b: [
+          [proof.pi_b[0][1], proof.pi_b[0][0]], // Note: reversed order
+          [proof.pi_b[1][1], proof.pi_b[1][0]],
+        ],
+        pi_c: [proof.pi_c[0], proof.pi_c[1]],
+        protocol: proof.protocol || 'groth16',
+        curve: 'bn128',
+      };
+
+      this.logger.debug(
+        'Converted to snarkjs format:',
+        JSON.stringify(snarkjsProof),
+      );
+
       const isValid = await this.snarkjs.groth16.verify(
         this.vKey,
         publicSignals,
-        proof,
+        snarkjsProof,
       );
 
       if (isValid) {
         this.logger.debug('Proof verified successfully');
       } else {
-        this.logger.warn('Proof verification failed');
+        this.logger.warn('Proof verification failed - snarkjs returned false');
+        this.logger.warn('Expected gamma:', this.vKey?.vk_gamma_2);
+        this.logger.warn('Expected delta:', this.vKey?.vk_delta_2);
       }
 
       return isValid;

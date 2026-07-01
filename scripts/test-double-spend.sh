@@ -55,8 +55,8 @@ INITIAL_DEPOSIT=$(echo "$PUBLIC_INPUTS" | jq -r '.initialDeposit')
 ID_COMMITMENT=$(echo "$PUBLIC_INPUTS" | jq -r '.idCommitment')
 
 # Convert hex to decimal for signals
-SIGNAL_X_DEC=$((16#$SIGNAL_X))
-SIGNAL_Y_DEC=$((16#$SIGNAL_Y))
+SIGNAL_X_HEX=$SIGNAL_X  # Keep as hex - bash truncates to 64-bit
+SIGNAL_Y_HEX=$SIGNAL_Y  # Keep as hex - bash truncates to 64-bit
 
 PROOF_STRING=$(echo "$PROOF_JSON" | jq -c | jq -R)
 
@@ -73,8 +73,8 @@ REQUEST_JSON=$(cat <<EOF
   "payload": "First double-spend test request",
   "nullifier": "$NULLIFIER",
   "signal": {
-    "x": "$SIGNAL_X_DEC",
-    "y": "$SIGNAL_Y_DEC"
+    "x": "$SIGNAL_X_HEX",
+    "y": "$SIGNAL_Y_HEX"
   },
   "proof": $PROOF_STRING,
   "maxCost": "$MAX_COST",
@@ -116,8 +116,8 @@ PUBLIC_INPUTS2=$(echo "$PROOF_OUTPUT2" | awk '/^Public Inputs \(JSON\):/{flag=1;
 
 SIGNAL_X2=$(echo "$PUBLIC_INPUTS2" | jq -r '.signalX' | sed 's/0x//')
 SIGNAL_Y2=$(echo "$PUBLIC_INPUTS2" | jq -r '.signalY' | sed 's/0x//')
-SIGNAL_X2_DEC=$((16#$SIGNAL_X2))
-SIGNAL_Y2_DEC=$((16#$SIGNAL_Y2))
+SIGNAL_X2_HEX=$SIGNAL_X2  # Keep as hex
+SIGNAL_Y2_HEX=$SIGNAL_Y2  # Keep as hex
 MERKLE_ROOT2=$(echo "$PUBLIC_INPUTS2" | jq -r '.merkleRoot')
 INITIAL_DEPOSIT2=$(echo "$PUBLIC_INPUTS2" | jq -r '.initialDeposit')
 ID_COMMITMENT2=$(echo "$PUBLIC_INPUTS2" | jq -r '.idCommitment')
@@ -134,8 +134,8 @@ REQUEST_JSON2=$(cat <<EOF
   "payload": "Second request - should FAIL (double-spend)",
   "nullifier": "$NULLIFIER",
   "signal": {
-    "x": "$SIGNAL_X2_DEC",
-    "y": "$SIGNAL_Y2_DEC"
+    "x": "$SIGNAL_X2_HEX",
+    "y": "$SIGNAL_Y2_HEX"
   },
   "proof": $PROOF_STRING2,
   "maxCost": "$MAX_COST",

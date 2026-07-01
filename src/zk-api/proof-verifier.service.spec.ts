@@ -14,12 +14,12 @@ describe('ProofVerifierService', () => {
 
   const mockProof = JSON.stringify({
     protocol: 'groth16',
-    pi_a: ['0x123', '0x456'],
+    pi_a: ['0x123', '0x456', '1'],
     pi_b: [
-      ['0x111', '0x222'],
-      ['0x333', '0x444'],
+      ['0x111', '0x222', '1'],
+      ['0x333', '0x444', '1'],
     ],
-    pi_c: ['0x789', '0xabc'],
+    pi_c: ['0x789', '0xabc', '1'],
   });
 
   const mockPublicInputs = {
@@ -195,14 +195,13 @@ describe('ProofVerifierService', () => {
           pi_b: expect.any(Array) as unknown[][],
           pi_c: expect.any(Array) as unknown[],
         }),
+        // Test circuit format: [nullifier, signalY, idCommitment, signalX, idCommitmentExpected]
         expect.arrayContaining([
-          mockPublicInputs.merkleRoot.replace('0x', ''),
-          mockPublicInputs.maxCost.replace('0x', ''),
-          mockPublicInputs.initialDeposit.replace('0x', ''),
-          mockPublicInputs.signalX.replace('0x', ''),
-          mockPublicInputs.nullifier.replace('0x', ''),
-          mockPublicInputs.signalY.replace('0x', ''),
-          mockPublicInputs.idCommitment.replace('0x', ''),
+          BigInt(mockPublicInputs.nullifier).toString(),
+          BigInt(mockPublicInputs.signalY).toString(),
+          BigInt(mockPublicInputs.idCommitment).toString(),
+          BigInt(mockPublicInputs.signalX).toString(),
+          BigInt(mockPublicInputs.idCommitment).toString(), // idCommitmentExpected
         ]) as string[],
       );
     });
