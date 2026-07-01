@@ -1,5 +1,21 @@
 # ZK Proof Verification Fix - July 2026
 
+## Update: Additional Security Fix (2026-07-01)
+
+**Critical security vulnerability identified by Opus 4.8**: The verifier was duplicating `idCommitment` at public signal index 4 instead of using the actual `idCommitmentExpected` public input from the circuit. This meant the circuit constraint `idCommitment === idCommitmentExpected` was being validated against itself, not against a separate public input that could differ.
+
+**Impact**: The verifier couldn't detect proofs where `idCommitment ≠ idCommitmentExpected`, defeating the circuit's membership check.
+
+**Fix Applied**:
+1. Added `idCommitmentExpected: string` field to `ZkApiRequestDto`
+2. Updated `proofVerifier.verify()` to use `publicInputs.idCommitmentExpected` at index 4
+3. Updated all test scripts to include `idCommitmentExpected` in requests
+4. Updated all mock data in test specs
+
+See the second commit for full details.
+
+---
+
 ## Problem Summary
 
 ZK proof verification was failing in the API integration tests with "Invalid ZK proof" (401) errors, despite:

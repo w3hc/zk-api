@@ -81,7 +81,8 @@ REQUEST_JSON=$(cat <<EOF
   "merkleRoot": "$MERKLE_ROOT",
   "initialDeposit": "$INITIAL_DEPOSIT",
   "ticketIndex": "$RANDOM_TICKET_INDEX",
-  "idCommitment": "$ID_COMMITMENT"
+  "idCommitment": "$ID_COMMITMENT",
+  "idCommitmentExpected": "$ID_COMMITMENT"
 }
 EOF
 )
@@ -142,7 +143,8 @@ REQUEST_JSON2=$(cat <<EOF
   "merkleRoot": "$MERKLE_ROOT2",
   "initialDeposit": "$INITIAL_DEPOSIT2",
   "ticketIndex": "$SECOND_TICKET_INDEX",
-  "idCommitment": "$ID_COMMITMENT2"
+  "idCommitment": "$ID_COMMITMENT2",
+  "idCommitmentExpected": "$ID_COMMITMENT2"
 }
 EOF
 )

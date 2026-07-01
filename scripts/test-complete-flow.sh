@@ -148,7 +148,8 @@ REQUEST_JSON=$(cat <<EOF
   "merkleRoot": "$MERKLE_ROOT",
   "initialDeposit": "$INITIAL_DEPOSIT",
   "ticketIndex": "$RANDOM_TICKET_INDEX",
-  "idCommitment": "$ID_COMMITMENT_FROM_PROOF"
+  "idCommitment": "$ID_COMMITMENT_FROM_PROOF",
+  "idCommitmentExpected": "$ID_COMMITMENT_FROM_PROOF"
 }
 EOF
 )

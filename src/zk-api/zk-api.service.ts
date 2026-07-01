@@ -115,6 +115,7 @@ export class ZkApiService {
       nullifier: req.nullifier,
       signalY: req.signal.y,
       idCommitment: req.idCommitment,
+      idCommitmentExpected: req.idCommitmentExpected,
     });
     if (!valid) {
       throw new UnauthorizedException('Invalid ZK proof');
@@ -272,10 +273,22 @@ export class ZkApiService {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     const F = this.poseidon.F;
 
-    const x1 = BigInt(signal1.x);
-    const y1 = BigInt(signal1.y);
-    const x2 = BigInt(signal2.x);
-    const y2 = BigInt(signal2.y);
+    // Convert hex strings to BigInt (handle both with and without 0x prefix)
+    const toBigInt = (value: string): bigint => {
+      const str = value.trim();
+      if (str.startsWith('0x') || str.startsWith('-0x')) {
+        return BigInt(str);
+      }
+      if (/^-?\d+$/.test(str)) {
+        return BigInt(str);
+      }
+      return BigInt('0x' + str);
+    };
+
+    const x1 = toBigInt(signal1.x);
+    const y1 = toBigInt(signal1.y);
+    const x2 = toBigInt(signal2.x);
+    const y2 = toBigInt(signal2.y);
 
     // Prevent division by zero
     if (x2 === x1) {
