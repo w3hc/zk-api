@@ -105,9 +105,33 @@ export class ZkApiService {
       );
     }
 
-    // 2. Check nullifier for double-spend
-    const existingSignal = this.nullifierStore.get(req.nullifier);
+    // 2. Verify ZK proof with cryptographic verification and public inputs
+    // Do this BEFORE nullifier check to prevent timing leaks
+    const valid = await this.proofVerifier.verify(req.proof, {
+      merkleRoot: req.merkleRoot,
+      maxCost: req.maxCost,
+      initialDeposit: req.initialDeposit,
+      signalX: req.signal.x,
+      nullifier: req.nullifier,
+      signalY: req.signal.y,
+      idCommitment: req.idCommitment,
+    });
+    if (!valid) {
+      throw new UnauthorizedException('Invalid ZK proof');
+    }
+
+    // 3. Atomically check nullifier and insert if new
+    // This prevents TOCTOU race conditions in concurrent scenarios
+    const payloadHash = this.hashPayload(req.payload);
+    const existingSignal = this.nullifierStore.checkAndSet(req.nullifier, {
+      ...req.signal,
+      payloadHash,
+      ticketIndex: req.ticketIndex,
+      idCommitment: req.idCommitment,
+    });
+
     if (existingSignal) {
+      // Nullifier already used
       if (existingSignal.x !== req.signal.x) {
         // Double-spend detected! Two different signals with same nullifier
         this.logger.error(
@@ -188,30 +212,6 @@ export class ZkApiService {
       // Same nullifier with same signal = replay attack
       throw new ForbiddenException('Nullifier already used');
     }
-
-    // 3. Verify ZK proof with cryptographic verification and public inputs
-    const valid = await this.proofVerifier.verify(req.proof, {
-      merkleRoot: req.merkleRoot,
-      maxCost: req.maxCost,
-      initialDeposit: req.initialDeposit,
-      signalX: req.signal.x,
-      nullifier: req.nullifier,
-      signalY: req.signal.y,
-      idCommitment: req.idCommitment,
-    });
-    if (!valid) {
-      throw new UnauthorizedException('Invalid ZK proof');
-    }
-
-    // 4. Store nullifier to prevent reuse
-    // Also store payload hash for policy violation proofs and metadata for double-spend slashing
-    const payloadHash = this.hashPayload(req.payload);
-    this.nullifierStore.set(req.nullifier, {
-      ...req.signal,
-      payloadHash,
-      ticketIndex: req.ticketIndex,
-      idCommitment: req.idCommitment,
-    });
 
     // 5. Execute API request (Claude example)
     const response = await this.executeClaudeRequest(req.payload, model);

@@ -295,7 +295,9 @@ describe('ProofVerifierService', () => {
       // This test verifies that mock verification is no longer available
       snarkjsProofService.isAvailable.mockReturnValue(false);
 
-      await expect(service.verify(mockProof, mockPublicInputs)).rejects.toThrow();
+      await expect(
+        service.verify(mockProof, mockPublicInputs),
+      ).rejects.toThrow();
 
       // Note: usingRealVerification returns false when snarkjs is unavailable
       // but the service throws instead of falling back to mock

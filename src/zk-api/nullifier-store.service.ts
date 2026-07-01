@@ -341,6 +341,78 @@ export class NullifierStoreService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Atomically check if nullifier exists and insert if not.
+   * Returns the existing signal if found, or null if successfully inserted.
+   *
+   * This operation is atomic and thread-safe:
+   * - Uses a transaction to ensure atomicity
+   * - SQLite's write serialization prevents race conditions
+   * - Either the nullifier exists (returns existing signal) or is inserted (returns null)
+   *
+   * @param nullifier - The nullifier to check and potentially insert
+   * @param signal - The signal data to insert if nullifier doesn't exist
+   * @returns Existing signal if nullifier was already present, null if newly inserted
+   */
+  checkAndSet(
+    nullifier: string,
+    signal: {
+      x: string;
+      y: string;
+      rlnShare_a?: string;
+      payloadHash?: string;
+      ticketIndex?: string;
+      idCommitment?: string;
+    },
+  ): StoredSignal | null {
+    // SQLite's default transaction mode (DEFERRED) ensures atomicity
+    // All operations within this transaction are serialized
+    const transaction = this.db.transaction(() => {
+      // First, check if nullifier exists
+      const checkStmt = this.db.prepare(
+        'SELECT x, y, timestamp, rln_share_a, payload_hash, ticket_index, id_commitment FROM nullifiers WHERE nullifier = ?',
+      );
+      const existing = checkStmt.get(nullifier) as NullifierRow | undefined;
+
+      if (existing) {
+        // Nullifier already exists, return the existing signal
+        return {
+          x: existing.x,
+          y: existing.y,
+          timestamp: existing.timestamp,
+          rlnShare_a: existing.rln_share_a || undefined,
+          payloadHash: existing.payload_hash || undefined,
+          ticketIndex: existing.ticket_index || undefined,
+          idCommitment: existing.id_commitment || undefined,
+        };
+      }
+
+      // Nullifier doesn't exist, insert it
+      const timestamp = Date.now();
+      const insertStmt = this.db.prepare(
+        'INSERT INTO nullifiers (nullifier, x, y, timestamp, rln_share_a, payload_hash, ticket_index, id_commitment) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      );
+      insertStmt.run(
+        nullifier,
+        signal.x,
+        signal.y,
+        timestamp,
+        signal.rlnShare_a || null,
+        signal.payloadHash || null,
+        signal.ticketIndex || null,
+        signal.idCommitment || null,
+      );
+
+      this.logger.debug(
+        `Stored nullifier atomically: ${nullifier.slice(0, 10)}...`,
+      );
+      return null;
+    });
+
+    // Execute the transaction
+    return transaction();
+  }
+
+  /**
    * Get all stored nullifiers (for debugging)
    */
   getAll(): Map<string, StoredSignal> {
