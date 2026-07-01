@@ -164,4 +164,125 @@ describe('NullifierStoreService - Rate Limiting', () => {
       expect(service.count()).toBe(0);
     });
   });
+
+  describe('atomic checkAndSet operations', () => {
+    it('should insert new nullifier atomically', () => {
+      const nullifier = '0xatomic1';
+      const signal = { x: '0x111', y: '0x222' };
+
+      // First call should insert and return null
+      const result = service.checkAndSet(nullifier, signal);
+      expect(result).toBeNull();
+
+      // Verify it was stored
+      const stored = service.get(nullifier);
+      expect(stored).toBeDefined();
+      expect(stored?.x).toBe(signal.x);
+      expect(stored?.y).toBe(signal.y);
+    });
+
+    it('should return existing signal if nullifier already exists', () => {
+      const nullifier = '0xatomic2';
+      const signal1 = { x: '0x333', y: '0x444' };
+      const signal2 = { x: '0x555', y: '0x666' };
+
+      // First insert
+      service.checkAndSet(nullifier, signal1);
+
+      // Second insert with different signal should return existing
+      const result = service.checkAndSet(nullifier, signal2);
+      expect(result).not.toBeNull();
+      expect(result?.x).toBe(signal1.x);
+      expect(result?.y).toBe(signal1.y);
+
+      // Verify original signal is still stored
+      const stored = service.get(nullifier);
+      expect(stored?.x).toBe(signal1.x);
+      expect(stored?.y).toBe(signal1.y);
+    });
+
+    it('should preserve all signal fields atomically', () => {
+      const nullifier = '0xatomic3';
+      const signal = {
+        x: '0x777',
+        y: '0x888',
+        rlnShare_a: '0xabc',
+        payloadHash: '0xdef',
+        ticketIndex: '42',
+        idCommitment: '0xghi',
+      };
+
+      const result = service.checkAndSet(nullifier, signal);
+      expect(result).toBeNull();
+
+      const stored = service.get(nullifier);
+      expect(stored?.x).toBe(signal.x);
+      expect(stored?.y).toBe(signal.y);
+      expect(stored?.rlnShare_a).toBe(signal.rlnShare_a);
+      expect(stored?.payloadHash).toBe(signal.payloadHash);
+      expect(stored?.ticketIndex).toBe(signal.ticketIndex);
+      expect(stored?.idCommitment).toBe(signal.idCommitment);
+    });
+
+    it('should handle concurrent-like sequential calls', () => {
+      const nullifier = '0xatomic4';
+      const signals = [
+        { x: '0xa1', y: '0xb1' },
+        { x: '0xa2', y: '0xb2' },
+        { x: '0xa3', y: '0xb3' },
+      ];
+
+      // First call should succeed
+      const result1 = service.checkAndSet(nullifier, signals[0]);
+      expect(result1).toBeNull();
+
+      // Subsequent calls should return the first signal
+      const result2 = service.checkAndSet(nullifier, signals[1]);
+      expect(result2).not.toBeNull();
+      expect(result2?.x).toBe(signals[0].x);
+
+      const result3 = service.checkAndSet(nullifier, signals[2]);
+      expect(result3).not.toBeNull();
+      expect(result3?.x).toBe(signals[0].x);
+
+      // Verify count is still 1
+      expect(service.count()).toBe(1);
+    });
+
+    it('should work correctly for different nullifiers', () => {
+      const nullifiers = ['0xmulti1', '0xmulti2', '0xmulti3'];
+      const signals = [
+        { x: '0xm1', y: '0xn1' },
+        { x: '0xm2', y: '0xn2' },
+        { x: '0xm3', y: '0xn3' },
+      ];
+
+      // Each nullifier should insert successfully
+      for (let i = 0; i < nullifiers.length; i++) {
+        const result = service.checkAndSet(nullifiers[i], signals[i]);
+        expect(result).toBeNull();
+      }
+
+      // Verify all are stored correctly
+      for (let i = 0; i < nullifiers.length; i++) {
+        const stored = service.get(nullifiers[i]);
+        expect(stored?.x).toBe(signals[i].x);
+        expect(stored?.y).toBe(signals[i].y);
+      }
+
+      expect(service.count()).toBe(3);
+    });
+
+    it('should maintain atomicity with timestamp', () => {
+      const nullifier = '0xtime1';
+      const signal = { x: '0xt1', y: '0xt2' };
+
+      const result = service.checkAndSet(nullifier, signal);
+      expect(result).toBeNull();
+
+      const stored = service.get(nullifier);
+      expect(stored?.timestamp).toBeDefined();
+      expect(stored?.timestamp).toBeGreaterThan(Date.now() - 1000);
+    });
+  });
 });
