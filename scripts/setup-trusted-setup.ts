@@ -19,7 +19,7 @@ import { join } from 'path';
 
 const CIRCUITS_DIR = join(__dirname, '../circuits');
 const BUILD_DIR = join(CIRCUITS_DIR, 'build');
-const CIRCUIT_NAME = 'api_credit_proof_test';
+const CIRCUIT_NAME = 'api_credit_proof';
 
 // Ensure build directory exists
 if (!existsSync(BUILD_DIR)) {
@@ -70,35 +70,36 @@ try {
   }
 
   // Step 2: Generate Powers of Tau (if not exists)
-  const ptauPath = join(BUILD_DIR, 'pot12_final.ptau');
+  // For 775K constraints, we need at least pot20 (2^20 = 1M constraints)
+  const ptauPath = join(BUILD_DIR, 'pot20_final.ptau');
   if (!existsSync(ptauPath)) {
-    console.log('\nGenerating Powers of Tau (this may take a few minutes)...');
+    console.log('\nGenerating Powers of Tau for 2^20 constraints (this will take 10-20 minutes)...');
 
     // Generate initial ceremony
     run(
-      'npx snarkjs powersoftau new bn128 12 pot12_0000.ptau',
-      'Powers of Tau initialization',
+      'npx snarkjs powersoftau new bn128 20 pot20_0000.ptau',
+      'Powers of Tau initialization (pot20)',
     );
 
     // Contribute to ceremony
     run(
-      'npx snarkjs powersoftau contribute pot12_0000.ptau pot12_0001.ptau --name="First contribution" -e="random entropy"',
+      'npx snarkjs powersoftau contribute pot20_0000.ptau pot20_0001.ptau --name="First contribution" -e="random entropy"',
       'Contribution to Powers of Tau',
     );
 
     // Prepare phase 2
     run(
-      'npx snarkjs powersoftau prepare phase2 pot12_0001.ptau pot12_final.ptau',
+      'npx snarkjs powersoftau prepare phase2 pot20_0001.ptau pot20_final.ptau',
       'Prepare phase 2',
     );
   } else {
-    console.log('✓ Powers of Tau already generated');
+    console.log('✓ Powers of Tau (pot20) already generated');
   }
 
   // Step 3: Generate proving key
   console.log('\nGenerating proving key (this may take several minutes)...');
   run(
-    `npx snarkjs groth16 setup ${CIRCUIT_NAME}.r1cs pot12_final.ptau ${CIRCUIT_NAME}_0000.zkey`,
+    `npx snarkjs groth16 setup ${CIRCUIT_NAME}.r1cs pot20_final.ptau ${CIRCUIT_NAME}_0000.zkey`,
     'Groth16 setup',
   );
 
@@ -116,7 +117,7 @@ try {
 
   // Step 6: Verify the final zkey
   run(
-    `npx snarkjs zkey verify ${CIRCUIT_NAME}.r1cs pot12_final.ptau ${CIRCUIT_NAME}_final.zkey`,
+    `npx snarkjs zkey verify ${CIRCUIT_NAME}.r1cs pot20_final.ptau ${CIRCUIT_NAME}_final.zkey`,
     'Verify final zkey',
   );
 
@@ -124,7 +125,7 @@ try {
   console.log(`\nGenerated files in ${BUILD_DIR}:`);
   console.log(`  - ${CIRCUIT_NAME}_final.zkey (proving key)`);
   console.log(`  - verification_key.json (verification key)`);
-  console.log(`  - pot12_final.ptau (Powers of Tau)`);
+  console.log(`  - ${CIRCUIT_NAME}_js/${CIRCUIT_NAME}.wasm (witness generator)`);
   console.log('\n✓ Circuit is ready for production use');
 } catch (error) {
   console.error('\n✗ Trusted setup failed:', error);

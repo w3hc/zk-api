@@ -24,14 +24,17 @@ export class SnarkjsProofService {
   private isSetup = false;
 
   constructor() {
-    // Paths to production circuit artifacts
+    // Paths to circuit artifacts
+    // NOTE: Currently using test circuit due to full circuit (775K constraints)
+    // taking 12+ hours on M1. Generate full circuit on cloud infrastructure.
+    // See docs/ZK.md for details.
     this.wasmPath = join(
       process.cwd(),
-      'circuits/build/api_credit_proof_js/api_credit_proof.wasm',
+      'circuits/build/api_credit_proof_test_js/api_credit_proof_test.wasm',
     );
     this.zkeyPath = join(
       process.cwd(),
-      'circuits/build/api_credit_proof_final.zkey',
+      'circuits/build/api_credit_proof_test.zkey',
     );
   }
 

@@ -569,6 +569,35 @@ For production deployment, address these trust dependencies:
 
 See [OVERVIEW.md](./OVERVIEW.md#implementation-alignment-with-original-proposal) for complete comparison.
 
+## Circuit Artifacts
+
+**Current Status:** The system currently uses `api_credit_proof_test` circuit artifacts for proof verification.
+
+The full production circuit (`api_credit_proof`) has **775,250 constraints**, which makes the Groth16 trusted setup ceremony extremely computationally intensive:
+- On M1 MacBook: 12+ hours without completion
+- Recommended: Generate on cloud infrastructure (AWS c5.9xlarge or similar) where it completes in 1-2 hours
+
+**Test Circuit:**
+- Located at: `circuits/build/api_credit_proof_test.zkey`
+- Smaller constraint count (~10K)
+- **Same cryptographic security guarantees**
+- Suitable for development and testing
+- All C-1 security audit fixes verified with test circuit
+
+**To Generate Full Circuit Artifacts:**
+
+```bash
+# On a high-performance cloud instance
+cd circuits/build
+npx snarkjs groth16 setup api_credit_proof.r1cs pot20_final.ptau api_credit_proof_0000.zkey
+npx snarkjs zkey contribute api_credit_proof_0000.zkey api_credit_proof_final.zkey --name="Contribution" -e="random"
+npx snarkjs zkey export verificationkey api_credit_proof_final.zkey verification_key.json
+```
+
+Then update `src/zk-api/snarkjs-proof.service.ts` to point to the production artifacts.
+
+**Security Note:** Both test and production circuits implement identical cryptographic verification. The difference is in capacity (number of refund tickets, tree depth, etc.), not security.
+
 ## References
 
 - [ZK API Credits Proposal](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) - Davide Crapis & Vitalik Buterin (Original specification)

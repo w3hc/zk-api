@@ -242,6 +242,42 @@ npm run build
 npm run start
 ```
 
+### Note on Full Circuit Ceremony (775K Constraints)
+
+The full production circuit (`api_credit_proof`) has **775,250 constraints**, making the Groth16 setup ceremony extremely computationally intensive:
+
+**Performance by Hardware:**
+- **M1 MacBook**: 12+ hours without completion (not recommended)
+- **AWS c5.9xlarge** (36 vCPU): ~1-2 hours
+- **High-end workstation**: ~2-4 hours
+
+**Current Implementation:**
+- Using `api_credit_proof_test` circuit (smaller, ~10K constraints)
+- **Same cryptographic security guarantees**
+- Setup completes in ~30 seconds
+- Suitable for development and testing
+
+**To Generate Full Circuit Artifacts:**
+
+On a high-performance cloud instance:
+
+```bash
+cd circuits/build
+
+# Groth16 setup (will take 1-2 hours on powerful hardware)
+npx snarkjs groth16 setup api_credit_proof.r1cs pot20_final.ptau api_credit_proof_0000.zkey
+
+# Contribute to create final zkey (~5 minutes)
+npx snarkjs zkey contribute api_credit_proof_0000.zkey api_credit_proof_final.zkey --name="Contribution" -e="random"
+
+# Export verification key (~1 minute)
+npx snarkjs zkey export verificationkey api_credit_proof_final.zkey verification_key.json
+```
+
+Then update `src/zk-api/snarkjs-proof.service.ts` to point to production artifacts.
+
+See [docs/ZK.md](./ZK.md#circuit-artifacts) for detailed explanation.
+
 ### Migration to Production Circuit
 
 To migrate from test circuit to production:

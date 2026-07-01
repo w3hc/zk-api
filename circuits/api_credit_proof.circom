@@ -27,6 +27,15 @@ template DualMux() {
     out[1] <== (in[0] - in[1]) * s + in[1];
 }
 
+template Mux1() {
+    signal input c[2];
+    signal input s;
+    signal output out;
+
+    s * (1 - s) === 0;
+    out <== c[0] + s * (c[1] - c[0]);
+}
+
 template MerkleTreeChecker(levels) {
     signal input leaf;
     signal input root;
@@ -99,11 +108,20 @@ template ApiCreditProof(levels, maxRefunds) {
     // - ZkApiCredits.sol _hashRefundData()
     component refundVerifiers[maxRefunds];
     component refundHashers[maxRefunds];
+    component enabledChecks[maxRefunds];
+    component valueMux[maxRefunds];
+    signal isEnabled[maxRefunds];
     signal totalRefunds;
     signal refundSum[maxRefunds + 1];
     refundSum[0] <== 0;
 
     for (var i = 0; i < maxRefunds; i++) {
+        // Compute if this refund slot is enabled: i < numRefunds
+        enabledChecks[i] = LessThan(8);  // 8 bits sufficient for reasonable maxRefunds
+        enabledChecks[i].in[0] <== i;
+        enabledChecks[i].in[1] <== numRefunds;
+        isEnabled[i] <== enabledChecks[i].out;
+
         // Hash the complete refund data: Poseidon(idCommitment, nullifier, value, timestamp)
         refundHashers[i] = Poseidon(4);
         refundHashers[i].inputs[0] <== idCommitment;
@@ -113,7 +131,7 @@ template ApiCreditProof(levels, maxRefunds) {
 
         // Verify EdDSA signature using Poseidon-EdDSA
         refundVerifiers[i] = EdDSAPoseidonVerifier();
-        refundVerifiers[i].enabled <== (i < numRefunds) ? 1 : 0;
+        refundVerifiers[i].enabled <== isEnabled[i];
         refundVerifiers[i].Ax <== serverPubKeyX;
         refundVerifiers[i].Ay <== serverPubKeyY;
         refundVerifiers[i].R8x <== refundSignaturesR8x[i];
@@ -121,8 +139,14 @@ template ApiCreditProof(levels, maxRefunds) {
         refundVerifiers[i].S <== refundSignaturesS[i];
         refundVerifiers[i].M <== refundHashers[i].out;
 
-        // Accumulate refunds (only count if i < numRefunds)
-        refundSum[i + 1] <== refundSum[i] + ((i < numRefunds) ? refundValues[i] : 0);
+        // Accumulate refunds (only count if enabled)
+        // Use Mux to select: enabled ? refundValues[i] : 0
+        valueMux[i] = Mux1();
+        valueMux[i].c[0] <== 0;
+        valueMux[i].c[1] <== refundValues[i];
+        valueMux[i].s <== isEnabled[i];
+
+        refundSum[i + 1] <== refundSum[i] + valueMux[i].out;
     }
 
     totalRefunds <== refundSum[maxRefunds];
