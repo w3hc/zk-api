@@ -80,7 +80,9 @@ describe('SnarkjsProofService', () => {
 
     it('should initialize successfully when all files exist', async () => {
       (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue('{"vkey": "test"}');
+      (fs.readFileSync as jest.Mock).mockReturnValue(
+        '{"vk_delta_2": [["12345", "67890"], ["11111", "22222"], ["1", "0"]]}',
+      );
 
       const result = await service.initialize();
 
@@ -90,7 +92,9 @@ describe('SnarkjsProofService', () => {
 
     it('should return true if already initialized', async () => {
       (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue('{"vkey": "test"}');
+      (fs.readFileSync as jest.Mock).mockReturnValue(
+        '{"vk_delta_2": [["12345", "67890"], ["11111", "22222"], ["1", "0"]]}',
+      );
 
       await service.initialize();
       const result = await service.initialize();
@@ -120,7 +124,9 @@ describe('SnarkjsProofService', () => {
 
     beforeEach(() => {
       (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue('{"vkey": "test"}');
+      (fs.readFileSync as jest.Mock).mockReturnValue(
+        '{"vk_delta_2": [["12345", "67890"], ["11111", "22222"], ["1", "0"]]}',
+      );
     });
 
     it('should generate proof when initialized', async () => {
@@ -174,12 +180,23 @@ describe('SnarkjsProofService', () => {
   });
 
   describe('verifyProof', () => {
-    const mockProof = { pi_a: ['0x1', '0x2'] };
+    // Use proper Groth16 proof format with projective coordinates [x, y, z]
+    const mockProof = {
+      pi_a: ['1', '2', '1'],
+      pi_b: [
+        ['3', '4', '1'],
+        ['5', '6', '1'],
+      ],
+      pi_c: ['7', '8', '1'],
+      protocol: 'groth16',
+    };
     const mockPublicSignals = ['signal1', 'signal2'];
 
     beforeEach(() => {
       (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue('{"vkey": "test"}');
+      (fs.readFileSync as jest.Mock).mockReturnValue(
+        '{"vk_delta_2": [["12345", "67890"], ["11111", "22222"], ["1", "0"]]}',
+      );
     });
 
     it('should verify proof successfully', async () => {
@@ -265,7 +282,9 @@ describe('SnarkjsProofService', () => {
 
     it('should return true after successful initialization', async () => {
       (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue('{"vkey": "test"}');
+      (fs.readFileSync as jest.Mock).mockReturnValue(
+        '{"vk_delta_2": [["12345", "67890"], ["11111", "22222"], ["1", "0"]]}',
+      );
 
       await service.initialize();
 

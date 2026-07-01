@@ -4,18 +4,22 @@
  *
  * Usage:
  *   ts-node scripts/generate-proof.ts <secretKey> <ticketIndex>
+ *
+ * Generates REAL Groth16 cryptographic proofs using snarkjs.
+ * Uses api_credit_proof_test.circom for faster testing.
  */
 
 const circomlibjs = require('circomlibjs');
+const snarkjs = require('snarkjs');
 import { ethers } from 'ethers';
+import * as path from 'path';
+import * as fs from 'fs';
 
 interface ProofInput {
   secretKey: bigint;
   ticketIndex: bigint;
   signalX: bigint;
-  merkleRoot: string;
-  maxCost: string;
-  initialDeposit: string;
+  idCommitmentExpected: bigint;
 }
 
 async function generateIdCommitment(poseidon: any, secretKey: bigint): Promise<bigint> {
@@ -23,44 +27,20 @@ async function generateIdCommitment(poseidon: any, secretKey: bigint): Promise<b
   return F.toObject(poseidon([secretKey]));
 }
 
-async function generateRLNSignal(
-  poseidon: any,
-  secretKey: bigint,
-  ticketIndex: bigint,
-  signalX: bigint,
-): Promise<{
-  nullifier: bigint;
-  signalY: bigint;
-  a: bigint;
-}> {
-  const F = poseidon.F;
+async function generateRealProof(input: ProofInput) {
+  console.log('\n🔐 Generating Real ZK Proof with Groth16...\n');
 
-  // a = Hash(secretKey, ticketIndex)
-  const a = F.toObject(poseidon([secretKey, ticketIndex]));
+  // Circuit artifacts
+  const wasmPath = path.join(process.cwd(), 'circuits/build/api_credit_proof_test_js/api_credit_proof_test.wasm');
+  const zkeyPath = path.join(process.cwd(), 'circuits/build/api_credit_proof_test.zkey');
 
-  // nullifier = Hash(a)
-  const nullifier = F.toObject(poseidon([a]));
-
-  // signalY = secretKey + a * signalX (using field arithmetic)
-  const signalY = F.toObject(F.add(F.e(secretKey), F.mul(F.e(a), F.e(signalX))));
-
-  return { nullifier, signalY, a };
-}
-
-async function generateMockProof(input: ProofInput) {
-  console.log('\n🔐 Generating ZK Proof...\n');
-
-  // Initialize Poseidon hash
-  const poseidon = await circomlibjs.buildPoseidon();
-
-  // Generate public outputs
-  const idCommitment = await generateIdCommitment(poseidon, input.secretKey);
-  const { nullifier, signalY } = await generateRLNSignal(
-    poseidon,
-    input.secretKey,
-    input.ticketIndex,
-    input.signalX,
-  );
+  // Verify artifacts exist
+  if (!fs.existsSync(wasmPath)) {
+    throw new Error(`WASM file not found: ${wasmPath}`);
+  }
+  if (!fs.existsSync(zkeyPath)) {
+    throw new Error(`zkey file not found: ${zkeyPath}`);
+  }
 
   console.log('Private Inputs:');
   console.log(`  Secret Key: ${input.secretKey}`);
@@ -69,49 +49,70 @@ async function generateMockProof(input: ProofInput) {
 
   console.log('Public Inputs:');
   console.log(`  Signal X: ${input.signalX}`);
-  console.log(`  Merkle Root: ${input.merkleRoot}`);
-  console.log(`  Max Cost: ${input.maxCost}`);
-  console.log(`  Initial Deposit: ${input.initialDeposit}`);
+  console.log(`  ID Commitment Expected: ${input.idCommitmentExpected}`);
   console.log();
 
-  console.log('Public Outputs:');
-  console.log(`  ID Commitment: 0x${idCommitment.toString(16)}`);
-  console.log(`  Nullifier: 0x${nullifier.toString(16)}`);
+  // Prepare circuit inputs
+  const circuitInput = {
+    secretKey: input.secretKey.toString(),
+    ticketIndex: input.ticketIndex.toString(),
+    signalX: input.signalX.toString(),
+    idCommitmentExpected: input.idCommitmentExpected.toString(),
+  };
+
+  console.log('⏳ Generating proof (this may take a few seconds)...\n');
+
+  // Generate proof using snarkjs
+  const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+    circuitInput,
+    wasmPath,
+    zkeyPath,
+  );
+
+  // Parse public outputs
+  // Public signal order from circom: [outputs first, then inputs]
+  // [nullifier, signalY, idCommitment, signalX, idCommitmentExpected]
+  const nullifier = publicSignals[0];
+  const signalY = publicSignals[1];
+  const idCommitment = publicSignals[2];
+
+  console.log('Public Outputs (from proof):');
+  console.log(`  Nullifier: 0x${BigInt(nullifier).toString(16)}`);
   console.log(`  Signal Y: ${signalY}`);
+  console.log(`  ID Commitment: 0x${BigInt(idCommitment).toString(16)}`);
   console.log();
 
-  // Generate mock Groth16 proof
+  // Format proof for API
+  // Note: Groth16 proofs use projective coordinates (x, y, z)
+  // snarkjs returns affine coordinates [x, y], so we add z=1
   const proofData = {
-    pi_a: [
-      ethers.hexlify(ethers.randomBytes(32)),
-      ethers.hexlify(ethers.randomBytes(32)),
-    ],
+    pi_a: [proof.pi_a[0], proof.pi_a[1], '1'],
     pi_b: [
-      [ethers.hexlify(ethers.randomBytes(32)), ethers.hexlify(ethers.randomBytes(32))],
-      [ethers.hexlify(ethers.randomBytes(32)), ethers.hexlify(ethers.randomBytes(32))],
+      [proof.pi_b[0][1], proof.pi_b[0][0], '1'], // snarkjs returns in reverse order
+      [proof.pi_b[1][1], proof.pi_b[1][0], '1'],
     ],
-    pi_c: [
-      ethers.hexlify(ethers.randomBytes(32)),
-      ethers.hexlify(ethers.randomBytes(32)),
-    ],
+    pi_c: [proof.pi_c[0], proof.pi_c[1], '1'],
     protocol: 'groth16',
   };
 
-  const proof = JSON.stringify(proofData, null, 2);
+  const proofString = JSON.stringify(proofData, null, 2);
 
+  // For backward compatibility with test scripts, include additional fields
+  // These are used by the API but not part of the circuit
   const publicInputs = {
-    merkleRoot: input.merkleRoot,
-    maxCost: input.maxCost,
-    initialDeposit: input.initialDeposit,
+    nullifier: '0x' + BigInt(nullifier).toString(16).padStart(64, '0'),
     signalX: '0x' + input.signalX.toString(16).padStart(64, '0'),
-    nullifier: '0x' + nullifier.toString(16).padStart(64, '0'),
-    signalY: '0x' + signalY.toString(16).padStart(64, '0'),
-    idCommitment: '0x' + idCommitment.toString(16).padStart(64, '0'),
+    signalY: '0x' + BigInt(signalY).toString(16).padStart(64, '0'),
+    idCommitment: '0x' + BigInt(idCommitment).toString(16).padStart(64, '0'),
+    // These would normally come from the contract state
+    merkleRoot: ethers.ZeroHash,
+    maxCost: ethers.parseEther('0.001').toString(),
+    initialDeposit: ethers.parseEther('0.1').toString(),
   };
 
-  console.log('✅ Proof generated successfully!\n');
+  console.log('✅ Real cryptographic proof generated successfully!\n');
 
-  return { proof, publicInputs };
+  return { proof: proofString, publicInputs };
 }
 
 async function main() {
@@ -128,24 +129,24 @@ async function main() {
   const secretKey = BigInt(args[0]);
   const ticketIndex = BigInt(args[1]);
 
-  // Use random signalX for this request
-  const signalX = BigInt(ethers.hexlify(ethers.randomBytes(32)));
+  // Initialize Poseidon to compute expected ID commitment
+  const poseidon = await circomlibjs.buildPoseidon();
+  const idCommitmentExpected = await generateIdCommitment(poseidon, secretKey);
 
-  // Example values - in production these would come from the contract
-  const merkleRoot = ethers.hexlify(ethers.randomBytes(32));
-  const maxCost = ethers.parseEther('0.001').toString();
-  const initialDeposit = ethers.parseEther('0.1').toString();
+  // Use random signalX for this request
+  // Note: Large random values can cause slow witness generation in some circuits.
+  // For testing, we use a hash of timestamp to get reasonable-sized values.
+  const timestamp = Date.now();
+  const signalX = BigInt(ethers.keccak256(ethers.toBeHex(timestamp, 32))) % BigInt('1000000000000');
 
   const input: ProofInput = {
     secretKey,
     ticketIndex,
     signalX,
-    merkleRoot,
-    maxCost,
-    initialDeposit,
+    idCommitmentExpected,
   };
 
-  const { proof, publicInputs } = await generateMockProof(input);
+  const { proof, publicInputs } = await generateRealProof(input);
 
   console.log('Proof (JSON):');
   console.log(proof);
@@ -155,16 +156,13 @@ async function main() {
   console.log(JSON.stringify(publicInputs, null, 2));
   console.log();
 
-  console.log('📋 To use this proof with the API:');
-  console.log(`
-  curl -X POST http://localhost:3000/zk-api/chat \\
-    -H "Content-Type: application/json" \\
-    -d '{
-      "proof": ${JSON.stringify(proof)},
-      "publicInputs": ${JSON.stringify(publicInputs)},
-      "messages": [{"role": "user", "content": "Hello!"}]
-    }'
-  `);
+  console.log('📋 To use this proof with the API, send a POST request to /zk-api/request');
+
+  // Explicitly exit to prevent hanging (snarkjs/circomlibjs may keep event loop alive)
+  process.exit(0);
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

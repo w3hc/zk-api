@@ -106,15 +106,26 @@ export class ProofVerifierService {
       return false;
     }
 
+    // Groth16 proofs use projective coordinates (x, y, z) for elliptic curve points
+    // Each point should have 3 coordinates, with z typically being "1"
     if (
       !proofData.pi_a ||
       !proofData.pi_b ||
       !proofData.pi_c ||
-      proofData.pi_a.length !== 2 ||
+      proofData.pi_a.length !== 3 ||
       proofData.pi_b.length !== 2 ||
-      proofData.pi_c.length !== 2
+      proofData.pi_b[0].length !== 3 ||
+      proofData.pi_b[1].length !== 3 ||
+      proofData.pi_c.length !== 3
     ) {
       this.logger.warn('Invalid proof structure');
+      this.logger.debug('Proof structure:', {
+        pi_a_len: proofData.pi_a?.length,
+        pi_b_len: proofData.pi_b?.length,
+        pi_b0_len: proofData.pi_b?.[0]?.length,
+        pi_b1_len: proofData.pi_b?.[1]?.length,
+        pi_c_len: proofData.pi_c?.length,
+      });
       return false;
     }
 
@@ -173,34 +184,77 @@ export class ProofVerifierService {
       this.logger.debug('Using real snarkjs verification');
 
       // Construct public signals array from public inputs
-      // Order must match circuit: public inputs first, then public outputs
-      // From api_credit_proof.circom:
-      // public inputs: merkleRoot, maxCost, initialDeposit, signalX, serverPubKeyX, serverPubKeyY
+      // Order must match circuit: PUBLIC OUTPUTS FIRST, then PUBLIC INPUTS
+      //
+      // TEST CIRCUIT (api_credit_proof_test.circom) - currently active:
+      // public inputs: signalX, idCommitmentExpected
       // public outputs: nullifier, signalY, idCommitment
-      const publicSignals = [
-        publicInputs.merkleRoot.replace('0x', ''),
-        publicInputs.maxCost.replace('0x', ''),
-        publicInputs.initialDeposit.replace('0x', ''),
-        publicInputs.signalX.replace('0x', ''),
-        publicInputs.nullifier.replace('0x', ''),
-        publicInputs.signalY.replace('0x', ''),
-        publicInputs.idCommitment.replace('0x', ''),
-      ];
+      // Circom outputs: [nullifier, signalY, idCommitment, signalX, idCommitmentExpected]
+      // Total: 5 signals
+      // Convert hex strings to decimal strings for snarkjs
+      // Handle both hex strings (with/without 0x) and decimal strings
+      const toBigInt = (value: string): bigint => {
+        if (!value) return BigInt(0);
+        const str = value.toString().trim();
 
-      const isValid = await this.snarkjsProofService.verifyProof(
-        proofData,
-        publicSignals,
-      );
+        // If it starts with 0x, it's a hex string
+        if (str.startsWith('0x') || str.startsWith('-0x')) {
+          return BigInt(str);
+        }
 
-      if (isValid) {
-        this.successfulVerifications++;
-        this.logger.log('Proof verified successfully (cryptographic)');
-      } else {
-        this.failedVerifications++;
-        this.logger.warn('Proof verification failed (cryptographic)');
+        // If it's a plain number (possibly negative), treat as decimal
+        // This handles overflow cases where signalY might be negative
+        if (/^-?\d+$/.test(str)) {
+          const num = BigInt(str);
+          // If negative, convert to field element (add field modulus)
+          if (num < 0) {
+            // BN254 field modulus
+            const FIELD_MODULUS = BigInt(
+              '21888242871839275222246405745257275088548364400416034343698204186575808495617',
+            );
+            return FIELD_MODULUS + num;
+          }
+          return num;
+        }
+
+        // Otherwise assume hex without 0x prefix
+        return BigInt('0x' + str);
+      };
+
+      this.logger.debug('Raw public inputs received:', publicInputs);
+
+      try {
+        const publicSignals = [
+          toBigInt(publicInputs.nullifier).toString(),
+          toBigInt(publicInputs.signalY).toString(),
+          toBigInt(publicInputs.idCommitment).toString(),
+          toBigInt(publicInputs.signalX).toString(),
+          toBigInt(publicInputs.idCommitment).toString(), // idCommitmentExpected
+        ];
+
+        this.logger.debug('Constructed public signals:', publicSignals);
+
+        const isValid = await this.snarkjsProofService.verifyProof(
+          proofData,
+          publicSignals,
+        );
+
+        if (isValid) {
+          this.successfulVerifications++;
+          this.logger.log('Proof verified successfully (cryptographic)');
+        } else {
+          this.failedVerifications++;
+          this.logger.warn('Proof verification failed (cryptographic)');
+        }
+
+        return isValid;
+      } catch (conversionError) {
+        this.logger.error(
+          'Failed to convert public inputs to field elements',
+          conversionError,
+        );
+        throw conversionError;
       }
-
-      return isValid;
     } catch (error) {
       this.failedVerifications++;
       this.logger.error('Failed to verify proof', error);

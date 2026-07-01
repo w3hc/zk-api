@@ -118,9 +118,10 @@ MERKLE_ROOT=$(echo "$PUBLIC_INPUTS" | jq -r '.merkleRoot')
 INITIAL_DEPOSIT=$(echo "$PUBLIC_INPUTS" | jq -r '.initialDeposit')
 ID_COMMITMENT_FROM_PROOF=$(echo "$PUBLIC_INPUTS" | jq -r '.idCommitment')
 
-# Convert hex to decimal for signals
-SIGNAL_X_DEC=$((16#$SIGNAL_X))
-SIGNAL_Y_DEC=$((16#$SIGNAL_Y))
+# NOTE: Keep signals as hex strings (without 0x prefix) - do NOT convert to decimal
+# Bash arithmetic $(()) only supports 64-bit integers and truncates large field elements
+SIGNAL_X_HEX=$SIGNAL_X
+SIGNAL_Y_HEX=$SIGNAL_Y
 
 echo "✓ ZK proof generated"
 echo "  Secret key: $RANDOM_SECRET_KEY"
@@ -139,8 +140,8 @@ REQUEST_JSON=$(cat <<EOF
   "payload": "What does 苟全性命於亂世，不求聞達於諸侯。mean?",
   "nullifier": "$NULLIFIER",
   "signal": {
-    "x": "$SIGNAL_X_DEC",
-    "y": "$SIGNAL_Y_DEC"
+    "x": "$SIGNAL_X_HEX",
+    "y": "$SIGNAL_Y_HEX"
   },
   "proof": $PROOF_STRING,
   "maxCost": "$MAX_COST",
