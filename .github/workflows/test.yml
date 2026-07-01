@@ -85,7 +85,7 @@ jobs:
         run: pnpm build
 
       - name: Start API server
-        run: pnpm start:prod &
+        run: node dist/src/main.js &
         env:
           NODE_ENV: production
 
