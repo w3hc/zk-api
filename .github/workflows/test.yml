@@ -73,3 +73,9 @@ jobs:
 
       - name: Run Solidity contract tests
         run: cd contracts && forge test
+
+      - name: Run ZK tests
+        run: pnpm test:zk
+
+      - name: Run ZK integration tests
+        run: pnpm test:zk:integration
