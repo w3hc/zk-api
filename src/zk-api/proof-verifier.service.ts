@@ -153,68 +153,58 @@ export class ProofVerifierService {
       }
     }
 
-    // 3. Try real snarkjs verification if available, otherwise fall back to mock
+    // 3. Real snarkjs verification (REQUIRED - no mock fallback)
     try {
       this.verificationCount++;
 
-      // Check if snarkjs proof system is available
-      if (this.snarkjsProofService.isAvailable()) {
-        this.logger.debug('Using real snarkjs verification');
-
-        // Construct public signals array from public inputs
-        // Order must match circuit: public inputs first, then public outputs
-        // From api_credit_proof_simple.circom line 99:
-        // public [merkleRoot, maxCost, initialDeposit, signalX]
-        // outputs: nullifier, signalY, idCommitment
-        const publicSignals = [
-          publicInputs.merkleRoot.replace('0x', ''),
-          publicInputs.maxCost.replace('0x', ''),
-          publicInputs.initialDeposit.replace('0x', ''),
-          publicInputs.signalX.replace('0x', ''),
-          publicInputs.nullifier.replace('0x', ''),
-          publicInputs.signalY.replace('0x', ''),
-          publicInputs.idCommitment.replace('0x', ''),
-        ];
-
-        const isValid = await this.snarkjsProofService.verifyProof(
-          proofData,
-          publicSignals,
+      // CRITICAL: Real cryptographic verification is required
+      // The mock fallback has been removed per security audit SEC_AUDIT_JUNE_30.md
+      if (!this.snarkjsProofService.isAvailable()) {
+        this.failedVerifications++;
+        this.logger.error(
+          'CRITICAL: Proof verification requires circuit artifacts. ' +
+          'Run `npm run setup:circuit` to generate proving/verification keys.',
         );
-
-        if (isValid) {
-          this.successfulVerifications++;
-          this.logger.log('Proof verified successfully (cryptographic)');
-        } else {
-          this.failedVerifications++;
-          this.logger.warn('Proof verification failed (cryptographic)');
-        }
-
-        return isValid;
-      } else {
-        // Fall back to mock verification
-        this.mockVerifications++;
-        this.logger.debug(
-          'Snarkjs not available, using mock verification (dev mode)',
+        throw new Error(
+          'Proof verification not available. Circuit artifacts not loaded.',
         );
-        const isValid = this.proofGenService.verifyMockProof(
-          proof,
-          publicInputs,
-        );
-
-        if (isValid) {
-          this.successfulVerifications++;
-          this.logger.log('Proof verified successfully (mock)');
-        } else {
-          this.failedVerifications++;
-          this.logger.warn('Proof verification failed (mock)');
-        }
-
-        return isValid;
       }
+
+      this.logger.debug('Using real snarkjs verification');
+
+      // Construct public signals array from public inputs
+      // Order must match circuit: public inputs first, then public outputs
+      // From api_credit_proof.circom:
+      // public inputs: merkleRoot, maxCost, initialDeposit, signalX, serverPubKeyX, serverPubKeyY
+      // public outputs: nullifier, signalY, idCommitment
+      const publicSignals = [
+        publicInputs.merkleRoot.replace('0x', ''),
+        publicInputs.maxCost.replace('0x', ''),
+        publicInputs.initialDeposit.replace('0x', ''),
+        publicInputs.signalX.replace('0x', ''),
+        publicInputs.nullifier.replace('0x', ''),
+        publicInputs.signalY.replace('0x', ''),
+        publicInputs.idCommitment.replace('0x', ''),
+      ];
+
+      const isValid = await this.snarkjsProofService.verifyProof(
+        proofData,
+        publicSignals,
+      );
+
+      if (isValid) {
+        this.successfulVerifications++;
+        this.logger.log('Proof verified successfully (cryptographic)');
+      } else {
+        this.failedVerifications++;
+        this.logger.warn('Proof verification failed (cryptographic)');
+      }
+
+      return isValid;
     } catch (error) {
       this.failedVerifications++;
       this.logger.error('Failed to verify proof', error);
-      return false;
+      throw error;  // Fail closed - don't return false, propagate the error
     }
   }
 }

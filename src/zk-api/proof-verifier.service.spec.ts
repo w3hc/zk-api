@@ -9,7 +9,6 @@ import { SnarkjsProofService } from './snarkjs-proof.service';
 describe('ProofVerifierService', () => {
   let service: ProofVerifierService;
   let blockchainService: jest.Mocked<BlockchainService>;
-  let proofGenService: jest.Mocked<ProofGenService>;
   let snarkjsProofService: jest.Mocked<SnarkjsProofService>;
   let loggerErrorSpy: jest.SpyInstance;
 
@@ -61,7 +60,6 @@ describe('ProofVerifierService', () => {
 
     service = module.get<ProofVerifierService>(ProofVerifierService);
     blockchainService = module.get(BlockchainService);
-    proofGenService = module.get(ProofGenService);
     snarkjsProofService = module.get(SnarkjsProofService);
 
     // Suppress expected error logs
@@ -84,16 +82,11 @@ describe('ProofVerifierService', () => {
       expect(result).toBe(false);
     });
 
-    it('should verify using mock proof when snarkjs not available', async () => {
+    it('should throw error when snarkjs not available (no mock fallback)', async () => {
       snarkjsProofService.isAvailable.mockReturnValue(false);
-      proofGenService.verifyMockProof.mockReturnValue(true);
 
-      const result = await service.verify(mockProof, mockPublicInputs);
-
-      expect(result).toBe(true);
-      expect(proofGenService.verifyMockProof).toHaveBeenCalledWith(
-        mockProof,
-        mockPublicInputs,
+      await expect(service.verify(mockProof, mockPublicInputs)).rejects.toThrow(
+        'Proof verification not available. Circuit artifacts not loaded.',
       );
     });
 
@@ -122,7 +115,8 @@ describe('ProofVerifierService', () => {
         mockPublicInputs.merkleRoot,
       );
       blockchainService.isNullifierSlashed.mockResolvedValue(false);
-      proofGenService.verifyMockProof.mockReturnValue(true);
+      snarkjsProofService.isAvailable.mockReturnValue(true);
+      snarkjsProofService.verifyProof.mockResolvedValue(true);
 
       const result = await service.verify(mockProof, mockPublicInputs);
 
@@ -162,21 +156,55 @@ describe('ProofVerifierService', () => {
       blockchainService.getMerkleRoot.mockRejectedValue(
         new Error('Network error'),
       );
-      proofGenService.verifyMockProof.mockReturnValue(true);
+      snarkjsProofService.isAvailable.mockReturnValue(true);
+      snarkjsProofService.verifyProof.mockResolvedValue(true);
 
       const result = await service.verify(mockProof, mockPublicInputs);
 
       expect(result).toBe(true);
     });
 
-    it('should handle errors during verification gracefully', async () => {
-      proofGenService.verifyMockProof.mockImplementation(() => {
-        throw new Error('Unexpected error');
-      });
+    it('should throw errors during verification', async () => {
+      snarkjsProofService.isAvailable.mockReturnValue(true);
+      snarkjsProofService.verifyProof.mockRejectedValue(
+        new Error('Unexpected error'),
+      );
+
+      await expect(service.verify(mockProof, mockPublicInputs)).rejects.toThrow(
+        'Unexpected error',
+      );
+    });
+
+    it('should cryptographically reject proof with invalid witness (CRITICAL TEST)', async () => {
+      // This is the missing end-to-end negative test per SEC_AUDIT_JUNE_30.md line 64
+      // "real-but-wrong witness → production verifier → asserted rejection"
+
+      snarkjsProofService.isAvailable.mockReturnValue(true);
+
+      // Simulate real cryptographic verification rejecting an invalid proof
+      // (valid structure, but mathematically invalid witness/signals)
+      snarkjsProofService.verifyProof.mockResolvedValue(false);
 
       const result = await service.verify(mockProof, mockPublicInputs);
 
       expect(result).toBe(false);
+      expect(snarkjsProofService.verifyProof).toHaveBeenCalledWith(
+        expect.objectContaining({
+          protocol: 'groth16',
+          pi_a: expect.any(Array) as unknown[],
+          pi_b: expect.any(Array) as unknown[][],
+          pi_c: expect.any(Array) as unknown[],
+        }),
+        expect.arrayContaining([
+          mockPublicInputs.merkleRoot.replace('0x', ''),
+          mockPublicInputs.maxCost.replace('0x', ''),
+          mockPublicInputs.initialDeposit.replace('0x', ''),
+          mockPublicInputs.signalX.replace('0x', ''),
+          mockPublicInputs.nullifier.replace('0x', ''),
+          mockPublicInputs.signalY.replace('0x', ''),
+          mockPublicInputs.idCommitment.replace('0x', ''),
+        ]) as string[],
+      );
     });
   });
 
@@ -222,14 +250,13 @@ describe('ProofVerifierService', () => {
       expect(result).toBe(true);
     });
 
-    it('should allow mock verification in dev mode', async () => {
+    it('should throw error even in dev mode when snarkjs not available', async () => {
       process.env.NODE_ENV = 'development';
       snarkjsProofService.isAvailable.mockReturnValue(false);
-      proofGenService.verifyMockProof.mockReturnValue(true);
 
-      const result = await service.verify(mockProof, mockPublicInputs);
-
-      expect(result).toBe(true);
+      await expect(service.verify(mockProof, mockPublicInputs)).rejects.toThrow(
+        'Proof verification not available. Circuit artifacts not loaded.',
+      );
     });
   });
 
@@ -240,8 +267,8 @@ describe('ProofVerifierService', () => {
     });
 
     it('should track successful verifications', async () => {
-      snarkjsProofService.isAvailable.mockReturnValue(false);
-      proofGenService.verifyMockProof.mockReturnValue(true);
+      snarkjsProofService.isAvailable.mockReturnValue(true);
+      snarkjsProofService.verifyProof.mockResolvedValue(true);
 
       await service.verify(mockProof, mockPublicInputs);
 
@@ -252,8 +279,8 @@ describe('ProofVerifierService', () => {
     });
 
     it('should track failed verifications', async () => {
-      snarkjsProofService.isAvailable.mockReturnValue(false);
-      proofGenService.verifyMockProof.mockReturnValue(false);
+      snarkjsProofService.isAvailable.mockReturnValue(true);
+      snarkjsProofService.verifyProof.mockResolvedValue(false);
 
       await service.verify(mockProof, mockPublicInputs);
 
@@ -263,15 +290,18 @@ describe('ProofVerifierService', () => {
       expect(metrics.failed).toBe(1);
     });
 
-    it('should track mock verifications separately', async () => {
+    it('should not use mock verifications (deprecated)', async () => {
+      // Mock verification has been removed per security audit
+      // This test verifies that mock verification is no longer available
       snarkjsProofService.isAvailable.mockReturnValue(false);
-      proofGenService.verifyMockProof.mockReturnValue(true);
 
-      await service.verify(mockProof, mockPublicInputs);
+      await expect(service.verify(mockProof, mockPublicInputs)).rejects.toThrow();
 
+      // Note: usingRealVerification returns false when snarkjs is unavailable
+      // but the service throws instead of falling back to mock
       const metrics = service.getMetrics();
-      expect(metrics.mock).toBe(1);
-      expect(metrics.usingRealVerification).toBe(false);
+      expect(metrics.usingRealVerification).toBe(false); // False because unavailable
+      expect(metrics.failed).toBeGreaterThan(0); // But it failed-closed
     });
 
     it('should calculate success rate correctly', async () => {

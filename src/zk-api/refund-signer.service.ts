@@ -59,7 +59,7 @@ export class RefundSignerService {
           );
           throw new Error(
             'OPERATOR_PRIVATE_KEY must be configured in production. ' +
-            'Refusing to use deterministic fallback key.',
+              'Refusing to use deterministic fallback key.',
           );
         }
 
