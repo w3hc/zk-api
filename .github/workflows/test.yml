@@ -84,12 +84,19 @@ jobs:
       - name: Build application
         run: pnpm build
 
+      - name: Generate self-signed TLS certificates
+        run: |
+          mkdir -p secrets
+          openssl req -x509 -newkey rsa:4096 -keyout secrets/tls.key -out secrets/tls.cert -days 1 -nodes -subj "/CN=localhost"
+
       - name: Start API server
         run: node dist/src/main.js &
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Wait for API server
         run: |
-          timeout 30 bash -c 'until curl -s http://localhost:3000/health > /dev/null 2>&1; do sleep 1; done'
+          timeout 30 bash -c 'until curl -k -s https://localhost:3000/health > /dev/null 2>&1; do sleep 1; done'
 
       - name: Run ZK tests
         run: pnpm test:zk
