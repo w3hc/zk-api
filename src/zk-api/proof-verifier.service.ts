@@ -65,6 +65,7 @@ export class ProofVerifierService {
       nullifier: string;
       signalY: string;
       idCommitment: string;
+      idCommitmentExpected: string;
     },
   ): Promise<boolean> {
     // CRITICAL: Production mode requires real cryptographic verification
@@ -229,7 +230,7 @@ export class ProofVerifierService {
           toBigInt(publicInputs.signalY).toString(),
           toBigInt(publicInputs.idCommitment).toString(),
           toBigInt(publicInputs.signalX).toString(),
-          toBigInt(publicInputs.idCommitment).toString(), // idCommitmentExpected
+          toBigInt(publicInputs.idCommitmentExpected).toString(), // FIXED: was duplicating idCommitment
         ];
 
         this.logger.debug('Constructed public signals:', publicSignals);

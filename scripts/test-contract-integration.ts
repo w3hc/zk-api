@@ -288,6 +288,7 @@ async function main() {
   logger.log('  4. Test full withdrawal/refund/slashing flow');
 
   logger.log('\n✨ Integration test completed successfully!');
+  process.exit(0);
 }
 
 // Placeholder values for example

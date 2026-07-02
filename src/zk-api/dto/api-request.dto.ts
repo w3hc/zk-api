@@ -71,6 +71,14 @@ export class ZkApiRequestDto {
   idCommitment: string;
 
   @ApiProperty({
+    description:
+      'Expected identity commitment (public input for circuit constraint)',
+  })
+  @IsString()
+  @IsNotEmpty()
+  idCommitmentExpected: string;
+
+  @ApiProperty({
     description: 'Model/service variant to use (example: claude-sonnet-4.6)',
     required: false,
   })

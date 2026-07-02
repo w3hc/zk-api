@@ -31,6 +31,7 @@ describe('ProofVerifierService', () => {
     nullifier: '0x9999',
     signalY: '0x8888',
     idCommitment: '0x7777',
+    idCommitmentExpected: '0x7777', // Must match idCommitment for valid proof
   };
 
   beforeEach(async () => {

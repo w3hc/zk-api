@@ -145,6 +145,8 @@ describe('ZkApiService', () => {
       ticketIndex: '0',
       idCommitment:
         '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+      idCommitmentExpected:
+        '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
     };
 
     it('should process valid request successfully', async () => {
