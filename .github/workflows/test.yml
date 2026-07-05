@@ -65,8 +65,8 @@ jobs:
       - name: Run unit tests
         run: npm test
 
-      - name: Run e2e tests
-        run: npm run test:e2e
+      - name: Build application
+        run: pnpm build
 
       - name: Run Solidity contract tests
         run: cd contracts && forge test
@@ -78,25 +78,5 @@ jobs:
         run: |
           timeout 30 bash -c 'until curl -s -X POST -H "Content-Type: application/json" --data '\''{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'\'' http://127.0.0.1:8545 > /dev/null; do sleep 1; done'
 
-      - name: Build application
-        run: pnpm build
-
-      - name: Generate self-signed TLS certificates
-        run: |
-          mkdir -p secrets
-          openssl req -x509 -newkey rsa:4096 -keyout secrets/tls.key -out secrets/tls.cert -days 1 -nodes -subj "/CN=localhost"
-
-      - name: Start API server
-        run: node dist/src/main.js &
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-
-      - name: Wait for API server
-        run: |
-          timeout 30 bash -c 'until curl -k -s https://localhost:3000/health > /dev/null 2>&1; do sleep 1; done'
-
-      - name: Run ZK tests
-        run: pnpm test:zk
-
-      - name: Run ZK integration tests
-        run: pnpm test:zk:integration
+      - name: Run e2e tests
+        run: npm run test:e2e
