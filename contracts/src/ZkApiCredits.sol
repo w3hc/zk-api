@@ -375,7 +375,7 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         bytes32 _nullifier,
         bytes32 _idCommitment,
         uint256[8] calldata _proof,
-        uint256[3] calldata _publicSignals
+        uint256[5] calldata _publicSignals
     ) external nonReentrant {
         if (msg.sender != serverAddress) revert Unauthorized();
 
@@ -384,9 +384,9 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         if (slashedNullifiers[_nullifier]) revert AlreadySlashed();
 
         // Verify ZK proof of policy violation
-        // Public signals: [nullifierExpected, idCommitmentExpected, evidenceHash (output)]
+        // Public signals: [nullifierExpected (input), idCommitmentExpected (input), evidenceHash (output), nullifier (output), idCommitment (output)]
         // The proof verifies:
-        // 1. The nullifier was derived from the RLN share 'a'
+        // 1. The server knows the RLN signal from the actual request
         // 2. The evidence hash binds the nullifier to the violation content
         // 3. The idCommitment matches the expected on-chain value
         if (!policyVerifier.verifyPolicyProof(_proof, _publicSignals)) {
@@ -394,10 +394,12 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         }
 
         // Verify public signals match expected values
+        // _publicSignals[0] is nullifierExpected (input)
         require(
             _publicSignals[0] == uint256(_nullifier),
             'nullifier mismatch'
         );
+        // _publicSignals[1] is idCommitmentExpected (input)
         require(
             _publicSignals[1] == uint256(_idCommitment),
             'idCommitment mismatch'
@@ -437,7 +439,7 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         uint256 _refundValue,
         address payable _recipient,
         uint256[8] calldata _proof,
-        uint256[5] calldata _publicSignals
+        uint256[7] calldata _publicSignals
     ) external nonReentrant {
         Deposit storage userDeposit = deposits[_idCommitment];
         if (!userDeposit.active) revert DepositNotFound();
@@ -449,12 +451,13 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         if (slashedNullifiers[_nullifier]) revert AlreadySlashed();
 
         // Verify ZK proof of valid refund redemption
-        // Public signals: [signalX (input), refundValueClaimed (input), nullifier (output), signalY (output), idCommitment (output)]
+        // Public signals: [signalX (input), refundValueClaimed (input), serverPublicKeyX (input), serverPublicKeyY (input), nullifier (output), signalY (output), idCommitment (output)]
         // The proof verifies:
         // 1. User has valid refund ticket with EdDSA signature from server
         // 2. Signature is cryptographically valid (verified in circuit)
         // 3. Refund value matches _refundValue
         // 4. Nullifier is correctly computed from secretKey and ticketIndex
+        // 5. Server public key matches the on-chain stored value (CRITICAL for security)
         if (!refundVerifier.verifyRefundProof(_proof, _publicSignals)) {
             revert InvalidProof();
         }
@@ -465,14 +468,24 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
             _publicSignals[1] == _refundValue,
             'refundValue mismatch'
         );
-        // _publicSignals[2] is the nullifier output
+        // _publicSignals[2] is the serverPublicKeyX input - CRITICAL: prevents forged refunds
         require(
-            _publicSignals[2] == uint256(_nullifier),
+            _publicSignals[2] == uint256(serverPublicKey.x),
+            'serverPublicKeyX mismatch'
+        );
+        // _publicSignals[3] is the serverPublicKeyY input - CRITICAL: prevents forged refunds
+        require(
+            _publicSignals[3] == uint256(serverPublicKey.y),
+            'serverPublicKeyY mismatch'
+        );
+        // _publicSignals[4] is the nullifier output
+        require(
+            _publicSignals[4] == uint256(_nullifier),
             'nullifier mismatch'
         );
-        // _publicSignals[4] is the idCommitment output
+        // _publicSignals[6] is the idCommitment output
         require(
-            _publicSignals[4] == uint256(_idCommitment),
+            _publicSignals[6] == uint256(_idCommitment),
             'idCommitment mismatch'
         );
 

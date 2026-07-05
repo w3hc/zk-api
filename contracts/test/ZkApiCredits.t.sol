@@ -520,10 +520,13 @@ contract ZkApiCreditsTest is Test {
         bytes32 nullifier = keccak256('test_nullifier');
         bytes32 evidenceHash = keccak256('violation_evidence');
 
-        uint256[3] memory publicSignals;
+        // Public signals: [nullifierExpected (input), idCommitmentExpected (input), evidenceHash (output), nullifier (output), idCommitment (output)]
+        uint256[5] memory publicSignals;
         publicSignals[0] = uint256(nullifier);
         publicSignals[1] = uint256(idCommitment1);
         publicSignals[2] = uint256(evidenceHash);
+        publicSignals[3] = uint256(nullifier);
+        publicSignals[4] = uint256(idCommitment1);
 
         // Server slashes for policy violation
         vm.startPrank(server);
@@ -551,10 +554,12 @@ contract ZkApiCreditsTest is Test {
 
         bytes32 nullifier = keccak256('test_nullifier');
 
-        uint256[3] memory publicSignals;
+        uint256[5] memory publicSignals;
         publicSignals[0] = uint256(nullifier);
         publicSignals[1] = uint256(idCommitment1);
         publicSignals[2] = uint256(keccak256('evidence'));
+        publicSignals[3] = uint256(nullifier);
+        publicSignals[4] = uint256(idCommitment1);
 
         // Non-server cannot slash
         vm.startPrank(user2);
@@ -571,10 +576,12 @@ contract ZkApiCreditsTest is Test {
 
         bytes32 nullifier = keccak256('test_nullifier');
 
-        uint256[3] memory publicSignals;
+        uint256[5] memory publicSignals;
         publicSignals[0] = uint256(nullifier);
         publicSignals[1] = uint256(idCommitment1);
         publicSignals[2] = uint256(keccak256('evidence'));
+        publicSignals[3] = uint256(nullifier);
+        publicSignals[4] = uint256(idCommitment1);
 
         // Should revert due to invalid proof
         vm.startPrank(server);
