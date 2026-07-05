@@ -37,10 +37,10 @@ contract PolicyViolationVerifier {
     uint256 constant gammax2 = 10857046999023057135944570762232829481370756359578518086990519993285655852781;
     uint256 constant gammay1 = 4082367875863433681332203403145435568316851327593401208105741076214120093531;
     uint256 constant gammay2 = 8495653923123431417604973247489272438418190587263600148770280649306958101930;
-    uint256 constant deltax1 = 16393325789529609669405730293667343302169006966194232699241089508950991323794;
-    uint256 constant deltax2 = 6283119857411910289010284200946001391844262361418930834398600749615268768816;
-    uint256 constant deltay1 = 16581563454684292573567029270968915011824411844531121390908565069532394274057;
-    uint256 constant deltay2 = 8148721731329270056113035373384791766991700513159881521544056596433391011775;
+    uint256 constant deltax1 = 11559732032986387107991004021392285783925812861821192530917403151452391805634;
+    uint256 constant deltax2 = 10857046999023057135944570762232829481370756359578518086990519993285655852781;
+    uint256 constant deltay1 = 4082367875863433681332203403145435568316851327593401208105741076214120093531;
+    uint256 constant deltay2 = 8495653923123431417604973247489272438418190587263600148770280649306958101930;
 
     
     uint256 constant IC0x = 92730052289469509423070777814960204477132581807471165302382204869617333736;
@@ -68,7 +68,7 @@ contract PolicyViolationVerifier {
 
     uint16 constant pLastMem = 896;
 
-    function verifyProof(uint[2] calldata _pA, uint[2][2] calldata _pB, uint[2] calldata _pC, uint[5] calldata _pubSignals) public view returns (bool) {
+    function verifyProof(uint[2] memory _pA, uint[2][2] memory _pB, uint[2] memory _pC, uint[5] memory _pubSignals) public view returns (bool) {
         assembly {
             function checkField(v) {
                 if iszero(lt(v, r)) {
@@ -194,34 +194,23 @@ contract PolicyViolationVerifier {
          }
      }
 
+    /// @notice Verify proof with simplified interface
+    /// @param _proof Flat proof array [pA.x, pA.y, pB.x[0], pB.x[1], pB.y[0], pB.y[1], pC.x, pC.y]
+    /// @param _publicSignals Public signals array (5 elements)
+    /// @return True if the proof is valid
+    function verifyPolicyProof(
+        uint256[8] calldata _proof,
+        uint256[5] calldata _publicSignals
+    ) public view returns (bool) {
+        uint[2] memory pA = [_proof[0], _proof[1]];
+        uint[2][2] memory pB = [[_proof[2], _proof[3]], [_proof[4], _proof[5]]];
+        uint[2] memory pC = [_proof[6], _proof[7]];
 
-    /// @notice Verify policy violation proof
-    function verifyPolicyProof(uint256[8] calldata _proof, uint256[3] calldata _publicSignals) external view returns (bool) {
-        uint256[5] memory fullSignals;
-        fullSignals[0] = _publicSignals[0];
-        fullSignals[1] = _publicSignals[1];
-        fullSignals[2] = _publicSignals[2];
-        fullSignals[3] = _publicSignals[0];
-        fullSignals[4] = _publicSignals[1];
+        uint[5] memory pubSignals;
+        for (uint i = 0; i < 5; i++) {
+            pubSignals[i] = _publicSignals[i];
+        }
 
-        uint256[2] memory pA;
-        pA[0] = _proof[0];
-        pA[1] = _proof[1];
-
-        uint256[2][2] memory pB;
-        pB[0][0] = _proof[2];
-        pB[0][1] = _proof[3];
-        pB[1][0] = _proof[4];
-        pB[1][1] = _proof[5];
-
-        uint256[2] memory pC;
-        pC[0] = _proof[6];
-        pC[1] = _proof[7];
-
-        (bool success, bytes memory data) = address(this).staticcall(
-            abi.encodeWithSelector(this.verifyProof.selector, pA, pB, pC, fullSignals)
-        );
-        require(success);
-        return abi.decode(data, (bool));
+        return verifyProof(pA, pB, pC, pubSignals);
     }
 }
