@@ -24,12 +24,12 @@ template RefundRedemptionProof() {
     signal input refundSignatureR8x;      // EdDSA signature component
     signal input refundSignatureR8y;      // EdDSA signature component
     signal input refundSignatureS;        // EdDSA signature component
-    signal input serverPublicKeyX;        // Server's EdDSA public key
-    signal input serverPublicKeyY;        // Server's EdDSA public key
 
     // Public inputs (visible onchain)
     signal input signalX;
     signal input refundValueClaimed;      // Must match refundValue
+    signal input serverPublicKeyX;        // Server's EdDSA public key - MUST match on-chain value
+    signal input serverPublicKeyY;        // Server's EdDSA public key - MUST match on-chain value
 
     // Public outputs
     signal output nullifier;
@@ -84,4 +84,4 @@ template RefundRedemptionProof() {
     signatureVerifier.M <== messageHash.out;
 }
 
-component main {public [signalX, refundValueClaimed]} = RefundRedemptionProof();
+component main {public [signalX, refundValueClaimed, serverPublicKeyX, serverPublicKeyY]} = RefundRedemptionProof();

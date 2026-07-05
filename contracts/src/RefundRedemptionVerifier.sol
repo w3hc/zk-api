@@ -61,6 +61,12 @@ contract RefundRedemptionVerifier {
     uint256 constant IC5x = 4837173421474296679825570383404038780005059995026405581708328390231037931404;
     uint256 constant IC5y = 6326738860745001713331694678828218394971760149002639148235772486582937142294;
     
+    uint256 constant IC6x = 4627087845299854148332545529716717635772111904423980203743021678094596800892;
+    uint256 constant IC6y = 20495560219626604661423272596742703989317496798555499584711525233486328202419;
+    
+    uint256 constant IC7x = 10989519681647595170027809780598633823614135903414741645960536019010097285317;
+    uint256 constant IC7y = 3491771393873122806936581025512303442406333987671969416276399483502869090016;
+    
  
     // Memory data
     uint16 constant pVk = 0;
@@ -68,7 +74,7 @@ contract RefundRedemptionVerifier {
 
     uint16 constant pLastMem = 896;
 
-    function verifyProof(uint[2] calldata _pA, uint[2][2] calldata _pB, uint[2] calldata _pC, uint[5] calldata _pubSignals) public view returns (bool) {
+    function verifyProof(uint[2] memory _pA, uint[2][2] memory _pB, uint[2] memory _pC, uint[7] memory _pubSignals) public view returns (bool) {
         assembly {
             function checkField(v) {
                 if iszero(lt(v, r)) {
@@ -121,6 +127,10 @@ contract RefundRedemptionVerifier {
                 g1_mulAccC(_pVk, IC4x, IC4y, calldataload(add(pubSignals, 96)))
                 
                 g1_mulAccC(_pVk, IC5x, IC5y, calldataload(add(pubSignals, 128)))
+                
+                g1_mulAccC(_pVk, IC6x, IC6y, calldataload(add(pubSignals, 160)))
+                
+                g1_mulAccC(_pVk, IC7x, IC7y, calldataload(add(pubSignals, 192)))
                 
 
                 // -A
@@ -185,6 +195,10 @@ contract RefundRedemptionVerifier {
             
             checkField(calldataload(add(_pubSignals, 128)))
             
+            checkField(calldataload(add(_pubSignals, 160)))
+            
+            checkField(calldataload(add(_pubSignals, 192)))
+            
 
             // Validate all evaluations
             let isValid := checkPairing(_pA, _pB, _pC, _pubSignals, pMem)
@@ -193,28 +207,24 @@ contract RefundRedemptionVerifier {
              return(0, 0x20)
          }
      }
- 
 
     /// @notice Verify proof with simplified interface
-    function verifyRefundProof(uint256[8] calldata _proof, uint256[5] calldata _publicSignals) external view returns (bool) {
-        uint256[2] memory pA;
-        pA[0] = _proof[0];
-        pA[1] = _proof[1];
+    /// @param _proof Flat proof array [pA.x, pA.y, pB.x[0], pB.x[1], pB.y[0], pB.y[1], pC.x, pC.y]
+    /// @param _publicSignals Public signals array (7 elements)
+    /// @return True if the proof is valid
+    function verifyRefundProof(
+        uint256[8] calldata _proof,
+        uint256[7] calldata _publicSignals
+    ) public view returns (bool) {
+        uint[2] memory pA = [_proof[0], _proof[1]];
+        uint[2][2] memory pB = [[_proof[2], _proof[3]], [_proof[4], _proof[5]]];
+        uint[2] memory pC = [_proof[6], _proof[7]];
 
-        uint256[2][2] memory pB;
-        pB[0][0] = _proof[2];
-        pB[0][1] = _proof[3];
-        pB[1][0] = _proof[4];
-        pB[1][1] = _proof[5];
+        uint[7] memory pubSignals;
+        for (uint i = 0; i < 7; i++) {
+            pubSignals[i] = _publicSignals[i];
+        }
 
-        uint256[2] memory pC;
-        pC[0] = _proof[6];
-        pC[1] = _proof[7];
-
-        (bool success, bytes memory data) = address(this).staticcall(
-            abi.encodeWithSelector(this.verifyProof.selector, pA, pB, pC, _publicSignals)
-        );
-        require(success);
-        return abi.decode(data, (bool));
+        return verifyProof(pA, pB, pC, pubSignals);
     }
 }
