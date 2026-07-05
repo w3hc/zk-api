@@ -2,652 +2,300 @@
 
 ## Overview
 
-This guide demonstrates how to run a complete end-to-end test of the ZK API system, including:
+This guide covers testing for the ZK API system, including:
 
-- **Solidity Smart Contract**: Deposit management, stake slashing, and refund redemption
-- **Zero-Knowledge Proofs**: Privacy-preserving proof generation using Poseidon hash and RLN (Rate-Limit Nullifiers)
-- **Merkle Tree**: Anonymous set membership verification
-- **EdDSA Signatures**: Server-signed refund tickets for onchain redemption
-- **TEE Integration**: Trusted Execution Environment with cryptographic attestation
+- **Unit Tests**: Jest-based tests for individual components
+- **E2E Tests**: Full flow integration tests with real blockchain and proofs
+- **Contract Tests**: Foundry tests for Solidity smart contracts
+- **Proof Generation**: Testing ZK proof generation and verification
 
-## What This Test Proves
+## Quick Start
 
-### 1. Smart Contract Functionality
-- ✅ Users can deposit ETH with anonymous identity commitments
-- ✅ Deposits are split into RLN stake (claimable on double-spend) and policy stake (burned on ToS violations)
-- ✅ Contract tracks deposits, nullifiers, and refund redemptions
-- ✅ Merkle tree of identity commitments provides anonymity set
+```bash
+# Unit tests
+pnpm test
 
-### 2. Zero-Knowledge Proof System
-- ✅ Identity commitments are computed as `Hash(secretKey)`
-- ✅ Nullifiers prevent double-spending: `nullifier = Hash(Hash(secretKey, ticketIndex))`
-- ✅ RLN signals enable slashing: `signalY = secretKey + a * signalX` where `a = Hash(secretKey, ticketIndex)`
-- ✅ Double-spend detection: Two signals with same nullifier reveal the secret key
-- ✅ Proof verification validates user has sufficient deposit without revealing identity
+# E2E tests (requires Anvil)
+anvil                      # Terminal 1
+pnpm test:e2e             # Terminal 2
 
-### 3. Cryptographic Primitives
-- ✅ **Poseidon Hash**: ZK-friendly hash function for commitments and nullifiers
-- ✅ **EdDSA Signatures**: Server signs refund tickets that can be verified onchain
-- ✅ **Groth16 Proofs**: Succinct zero-knowledge proofs (mock implementation for testing)
+# Contract tests
+cd contracts && forge test -vv
 
-### 4. Privacy Guarantees
-- ✅ Requests are anonymous - server cannot link requests to deposit addresses
-- ✅ Rate limiting via nullifiers prevents abuse without breaking anonymity
-- ✅ Double-spending is deterred by stake slashing
-- ✅ Refunds are issued as signed tickets, redeemable onchain
+# All quality checks (no e2e)
+pnpm dance
 
-## Complete Test Flow
+# Full suite with e2e (requires Anvil)
+pnpm dance:full
+```
+
+## Unit Tests
+
+Jest-based tests for individual services and components.
+
+```bash
+# Run all unit tests
+pnpm test
+
+# Watch mode
+pnpm test:watch
+
+# Coverage report
+pnpm test:cov
+```
+
+**Coverage includes:**
+- API controllers and services
+- ZK proof generation and verification
+- Merkle tree operations
+- EdDSA signature handling
+- Database operations
+- Rate limiting and nullifier tracking
+
+## End-to-End Tests
+
+Comprehensive integration tests that verify the complete flow from deposit to refund.
 
 ### Prerequisites
 
-Ensure you have:
-- Node.js 20+ and pnpm installed
-- Foundry (forge, cast, anvil) installed
-- API server dependencies: `pnpm install`
-
-### Step 1: Start Anvil
-
-In a separate terminal, start the local blockchain:
-
-```bash
-anvil
-```
-
-This starts a local Ethereum node on `http://127.0.0.1:8545` with default test accounts.
-
-### Step 2: Deploy the Smart Contract
-
-Deploy the ZkApiCredits contract:
-
-```bash
-cd contracts
-forge script script/DeployZkApiCredits.s.sol:DeployZkApiCredits \
-  --rpc-url http://127.0.0.1:8545 \
-  --broadcast \
-  --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-```
-
-**Expected Output:**
-```
-ZkApiCredits deployed at: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
-Server address: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-Min RLN stake: 100000000000000000 (0.1 ETH)
-Min Policy stake: 100000000000000000 (0.1 ETH)
-```
-
-Update `.env.local` with the deployed contract address:
-```bash
-ZK_CONTRACT_ADDRESS=0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
-```
-
-### Step 3: Make a Test Deposit
-
-Generate a secret key and deposit ETH:
-
-```bash
-# Generate random secret key
-SECRET_KEY="0x$(openssl rand -hex 32)"
-echo "Secret Key (KEEP SECRET): $SECRET_KEY"
-
-# Calculate identity commitment using Poseidon hash
-# NOTE: In production, use circomlibjs to compute Poseidon(secretKey)
-# For testing, you can use the contract's hash or compute with circomlibjs
-# This example is simplified - actual implementation needs Poseidon hash
-echo "⚠️  Identity Commitment must be computed using Poseidon hash"
-echo "   Use circomlibjs or call PoseidonHasher.hash() from contract"
-echo "   Example: poseidon = require('circomlibjs').buildPoseidon()"
-echo "            ID_COMMITMENT = poseidon.F.toString(poseidon([secretKey]))"
-
-# Deposit 0.2 ETH (0.1 RLN + 0.1 Policy)
-cast send 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 \
-  "deposit(bytes32)" \
-  $ID_COMMITMENT \
-  --value 0.2ether \
-  --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
-  --rpc-url http://127.0.0.1:8545
-```
-
-**Expected Output:**
-```
-blockHash            0x...
-status               1 (success)
-transactionHash      0x...
-```
-
-Verify the deposit:
-
-```bash
-cast call 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0 \
-  "getDeposit(bytes32)(bytes32,uint256,uint256,uint256,bool)" \
-  $ID_COMMITMENT \
-  --rpc-url http://127.0.0.1:8545
-```
-
-**Expected Output:**
-```
-0x...                              # idCommitment
-100000000000000000 [1e17]          # rlnStake (0.1 ETH)
-100000000000000000 [1e17]          # policyStake (0.1 ETH)
-1774266976 [1.774e9]               # timestamp
-true                               # active
-```
-
-### Step 4: Start the API Server
-
-In a separate terminal:
-
-```bash
-pnpm start:dev
-```
-
-Verify the server is running:
-
-```bash
-curl -k https://localhost:3000/health
-```
-
-**Expected Output:**
-```json
-{"status":"ok","timestamp":"2026-03-23T11:55:56.734Z"}
-```
-
-### Step 5: Generate Zero-Knowledge Proof
-
-Generate a valid ZK proof with your secret key:
-
-```bash
-npx ts-node scripts/generate-proof.ts 12345 0
-```
-
-**Expected Output:**
-```
-🔐 Generating ZK Proof...
-
-Private Inputs:
-  Secret Key: 12345
-  Ticket Index: 0
-
-Public Outputs:
-  ID Commitment: 0x096f56a93ef8bcf4f5efc79d0967649f93d08eff0af7dca5a4f9aa8db1a434b6
-  Nullifier: 0x1831d7fcdedf8c37a368b4f7085efce3d6d0dd5aaa2989abd463f3e9779396a7
-  Signal Y: 4792263333310052430362670197383952318557778147848241908894849361182708510229
-
-✅ Proof generated successfully!
-```
-
-**What This Proves:**
-- The prover knows the secret key corresponding to an identity commitment
-- The nullifier is correctly computed from the secret key and ticket index
-- The RLN signal enables double-spend detection
-- The proof is zero-knowledge: verifier learns nothing about the secret key
-
-### Step 6: Make API Request
-
-Create a request JSON file (`request.json`):
-
-```json
-{
-  "payload": "What does 苟全性命於亂世，不求聞達於諸侯。mean?",
-  "nullifier": "0x1831d7fcdedf8c37a368b4f7085efce3d6d0dd5aaa2989abd463f3e9779396a7",
-  "signal": {
-    "x": "98697115603411145575059902243133134478525218165876753791203190180368507956817",
-    "y": "4792263333310052430362670197383952318557778147848241908894849361182708510229"
-  },
-  "proof": "{\"pi_a\":[\"0x...\",\"0x...\"],\"pi_b\":[[\"0x...\",\"0x...\"],[\"0x...\",\"0x...\"]],\"pi_c\":[\"0x...\",\"0x...\"],\"protocol\":\"groth16\"}",
-  "maxCost": "1000000000000000",
-  "merkleRoot": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-  "initialDeposit": "10000000000000000",
-  "ticketIndex": "0",
-  "idCommitment": "0x096f56a93ef8bcf4f5efc79d0967649f93d08eff0af7dca5a4f9aa8db1a434b6"
-}
-```
-
-Make the request:
-
-```bash
-curl -k -X POST https://localhost:3000/zk-api/request \
-  -H "Content-Type: application/json" \
-  -d @request.json | jq .
-```
-
-**Expected Response:**
-```json
-{
-  "response": "This is a mock Claude claude-sonnet-4.6 response to: \"What does 苟全性命於亂世，不求聞達於諸侯。mean?...\"",
-  "actualCost": "1441882863382",
-  "refundTicket": {
-    "nullifier": "0x1831d7fcdedf8c37a368b4f7085efce3d6d0dd5aaa2989abd463f3e9779396a7",
-    "value": "998558117136618",
-    "timestamp": 1774267106794,
-    "signature": {
-      "R8x": "0x2194371c0570b4f3f12c07df4a0b94d7a2945f472aa15b914e2a799464b9fcb2",
-      "R8y": "0x7a7840733f19503bf1d1f5bbab2d1f44185bf52350f213d6138edbed9c805209",
-      "S": "0xec09c41b1a2e96d18daf0cdad021e4d94beb4b25c5f58cd0eeac9eddd4c4fd31"
-    }
-  },
-  "usage": {
-    "inputTokens": 3,
-    "outputTokens": 205
-  }
-}
-```
-
-**What This Proves:**
-- ✅ API validates ZK proof
-- ✅ Nullifier is checked for uniqueness (prevents double-spend)
-- ✅ Request is processed anonymously
-- ✅ Server issues signed refund ticket for unused credits
-- ✅ EdDSA signature can be verified onchain for refund redemption
-
-### Step 7: Test Double-Spend Detection
-
-Try using the same nullifier again:
-
-```bash
-curl -k -X POST https://localhost:3000/zk-api/request \
-  -H "Content-Type: application/json" \
-  -d @request.json | jq .
-```
-
-**Expected Response:**
-```json
-{
-  "statusCode": 403,
-  "message": "Nullifier already used"
-}
-```
-
-**What This Proves:**
-- ✅ Rate limiting works via nullifier tracking
-- ✅ Attempts to reuse nullifiers are rejected
-- ✅ In a real system, two signals with same nullifier would reveal the secret key for slashing
-
-### Step 8: Verify Zero-Knowledge Properties
-
-Test the ZK proof generation and double-spend detection:
-
-```bash
-npx ts-node scripts/test-proof-verification.ts
-```
-
-**Expected Output:**
-```
-🧪 Testing ZK Proof Generation and Verification
-
-1️⃣ Generating Identity Commitment...
-   ✅ ID Commitment: 0x096f56a93ef8bcf4f5efc79d0967649f93d08eff0af7dca5a4f9aa8db1a434b6
-
-2️⃣ Generating RLN Signal...
-   ✅ a: 540663689097534992617434090946771188169151136163418449976754366008491461789
-   ✅ Nullifier: 0x1831d7fcdedf8c37a368b4f7085efce3d6d0dd5aaa2989abd463f3e9779396a7
-   ✅ Signal Y: 4792263333310052430362670197383952318557778147848241908894849361182708510229
-
-3️⃣ Testing Double-Spend Detection...
-   Signal 1: { x: 98697115603411145575059902243133134478525218165876753791203190180368507956817n, y: ... }
-   Signal 2: { x: 98697115603411145575059902243133134478525218165876753791203190180368507956818n, y: ... }
-   ✅ Recovered Secret Key: 12345
-   ✅ Original Secret Key: 12345
-   ✅ Match: true
-
-✅ All tests passed!
-🎉 ZK proof system is working correctly!
-```
-
-**What This Proves:**
-- ✅ Identity commitments hide the secret key
-- ✅ Nullifiers are deterministic (same secret + ticket index = same nullifier)
-- ✅ Two signals with same nullifier reveal the secret key via linear algebra
-- ✅ This enables stake slashing for double-spending without centralized authority
-
-## Automated Test Scripts
-
-### Complete Test Suite
-
-Run all integration tests at once:
-
-```bash
-pnpm test:zk
-```
-
-This runs all four test scripts in sequence:
-1. Complete flow test
-2. Double-spend prevention test
-3. Invalid proof rejection test
-4. Refund redemption test
-
-### Individual Test Scripts
-
-#### 1. Complete Flow Test
-
-```bash
-bash scripts/test-complete-flow.sh
-```
-
-**What It Does:**
-1. ✅ Checks if Anvil is running
-2. ✅ Deploys the ZkApiCredits contract
-3. ✅ Makes a test deposit (0.2 ETH with random identity commitment)
-4. ✅ Verifies the deposit onchain
-5. ✅ Checks if API server is running
-6. ✅ **Generates a real ZK proof** using Poseidon hash and RLN signals
-7. ✅ Makes an API request with cryptographic proof and displays the response
-8. ✅ Saves test artifacts to `.test-artifacts.json` for follow-up tests
-
-**Expected Output:**
-```
-Step 6: Generating zero-knowledge proof...
-✓ ZK proof generated
-  Secret key: 27137
-  Ticket index: 04
-  Nullifier: 0x2f2920f06c6c536e53c8275c23ce2e80c76a590071727c11258cee3029a3a269
-
-Step 7: Making API request with ZK proof...
-{
-  "response": "This is a mock Claude claude-sonnet-4.6 response to: \"What does 苟全性命於亂世，不求聞達於諸侯。mean?...\"",
-  "actualCost": "936048454273",
-  "refundTicket": {
-    "nullifier": "0x2f2920f06c6c536e53c8275c23ce2e80c76a590071727c11258cee3029a3a269",
-    "value": "999063951545727",
-    "timestamp": 1774269007297,
-    "signature": {
-      "R8x": "0xdb4e370a547fec01feb643f12733f614b072b838783677541bf7380466765d2a",
-      "R8y": "0x68927cf033a06bb4c7b5957f7fa511d4a363ce4e54e50564f88e7b857703d10f",
-      "S": "0x13b7baf50ecd75cd232252c8f360412ae40e44f4f805826aa3c5b8c887b1b4c5"
-    }
-  },
-  "usage": {
-    "inputTokens": 3,
-    "outputTokens": 132
-  }
-}
-
-✅ API request successful with real ZK proof!
-
-=== Test Complete! ===
-
-📋 Summary:
-  ✓ Anvil blockchain running
-  ✓ Smart contract deployed at: 0x5FbDB2315678afecb367f032d93F642f64180aa3
-  ✓ Test deposit made: 0.2 ETH
-  ✓ Identity commitment: 0xc74867d0f035af572c01b694e2c749b0b35846174c89210f631ba2c0b2d2bc9c
-  ✓ Real ZK proof generated (Poseidon hash + RLN signal)
-  ✓ API request processed with cryptographic proof
-```
-
-The API response includes:
-- Claude API response text
-- Actual cost in wei (deducted from deposit)
-- Refund ticket with unused credit amount
-- EdDSA signature (R8x, R8y, S) for onchain refund redemption
-- Token usage statistics (input/output tokens)
-
-**Note:** Each run generates a fresh random secret key and nullifier, so the test can be run multiple times without conflicts. The proof uses real cryptographic primitives (Poseidon hash for commitments, RLN signals for slashing detection).
-
-#### 2. Double-Spend Prevention Test
-
-```bash
-bash scripts/test-double-spend.sh
-```
-
-**What It Does:**
-1. ✅ Generates a fresh ZK proof with random nullifier
-2. ✅ Makes first API request → should succeed
-3. ✅ Generates second proof with same secret key but different ticket index
-4. ✅ Makes second request with same nullifier → should be rejected
-5. ✅ Verifies double-spend detection is working
-
-**Expected Output:**
-```
-✅ Second request REJECTED (expected - double-spend prevented!)
-   Error: Double-spend detected. Your secret key has been extracted and you will be slashed.
-
-✅ PASS: Double-spend prevention is working correctly!
-   ✓ First request with nullifier succeeded
-   ✓ Second request with same nullifier was rejected
-   ✓ Nullifier is tracked in API database
-```
-
-#### 3. Invalid Proof Rejection Test
-
-```bash
-bash scripts/test-invalid-proofs.sh
-```
-
-**What It Does:**
-Tests 28 different types of invalid proofs across 7 categories:
-1. ✅ Malformed proof structures (4 tests)
-2. ✅ Invalid Groth16 formats (4 tests)
-3. ✅ Invalid nullifier formats (5 tests)
-4. ✅ Invalid signal values (5 tests)
-5. ✅ Invalid cost values (4 tests)
-6. ✅ Invalid payloads (3 tests)
-7. ✅ Malformed requests (3 tests)
-
-**Expected Output:**
-```
-=== Test Results Summary ===
-
-Total tests: 28
-Passed: 28
-Failed: 0
-
-✅ ALL TESTS PASSED!
-
-The API correctly rejects all types of invalid proofs:
-  ✓ Malformed proof structures
-  ✓ Invalid Groth16 formats
-  ✓ Invalid nullifier formats
-  ✓ Invalid signal values
-  ✓ Invalid cost values
-  ✓ Invalid payloads
-  ✓ Malformed requests
-```
-
-#### 4. Refund Redemption Test
-
-```bash
-bash scripts/test-refund-redemption.sh
-```
-
-**What It Does:**
-1. ✅ Loads refund ticket from previous test
-2. ✅ Checks balance before redemption
-3. ✅ Calls `redeemRefund()` on smart contract
-4. ✅ Verifies balance increased by refund amount
-5. ✅ Tests double-redemption prevention
-
-**Expected Output:**
-```
-✅ Refund redemption transaction succeeded!
-✓ Transaction status: SUCCESS
-
-✓ Balance increased (refund received, minus gas costs)
-   Expected refund: 996380401808182 wei
-   Gas cost: ~8548522826823 wei
-
-✅ PASS: Refund redemption is working correctly!
-```
-
-### Prerequisites for Test Scripts
-
-Before running the integration tests, ensure:
-
-1. **Anvil is running:**
+1. **Start Anvil** (local blockchain):
    ```bash
    anvil
    ```
 
-2. **API server is running:**
+2. **Verify Anvil is running**:
    ```bash
-   pnpm start:dev
+   curl -X POST -H "Content-Type: application/json" \
+     --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+     http://127.0.0.1:8545
    ```
 
-3. **Scripts are executable (first time only):**
-   ```bash
-   chmod +x scripts/test-complete-flow.sh
-   chmod +x scripts/test-double-spend.sh
-   chmod +x scripts/test-invalid-proofs.sh
-   chmod +x scripts/test-refund-redemption.sh
-   ```
-
-## Testing Refund Redemption
-
-To test the complete refund flow:
-
-1. Make an API request and save the refund ticket
-2. Submit the refund ticket to redeem onchain:
+### Running E2E Tests
 
 ```bash
-curl -k -X POST https://localhost:3000/zk-api/redeem-refund \
-  -H "Content-Type: application/json" \
-  -d '{
-    "idCommitment": "0x096f56a93ef8bcf4f5efc79d0967649f93d08eff0af7dca5a4f9aa8db1a434b6",
-    "nullifier": "0x1831d7fcdedf8c37a368b4f7085efce3d6d0dd5aaa2989abd463f3e9779396a7",
-    "value": "998558117136618",
-    "timestamp": 1774267106794,
-    "signature": {
-      "R8x": "0x2194371c0570b4f3f12c07df4a0b94d7a2945f472aa15b914e2a799464b9fcb2",
-      "R8y": "0x7a7840733f19503bf1d1f5bbab2d1f44185bf52350f213d6138edbed9c805209",
-      "S": "0xec09c41b1a2e96d18daf0cdad021e4d94beb4b25c5f58cd0eeac9eddd4c4fd31"
-    },
-    "recipient": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-  }' | jq .
+pnpm test:e2e
 ```
 
-**Expected Response:**
-```json
-{
-  "success": true,
-  "transactionHash": "0x...",
-  "message": "Refund of 998558117136618 wei redeemed successfully"
-}
+### Main Flow Test (`test/app.e2e-spec.ts`)
+
+Tests the complete user flow:
+
+**Step 1: Alice deposits 1 ETH**
+- Generates identity commitment using Poseidon hash
+- Deploys contract via Foundry script
+- Makes deposit transaction
+- Verifies deposit onchain
+
+**Step 2: Alice uses the service**
+- Generates ZK proof using `generate-proof.ts`
+- Makes API request with proof
+- Receives Claude API response
+- Gets refund ticket with EdDSA signature
+
+**Step 3: Alice gets refund**
+- Attempts to redeem refund onchain
+- Validates security (mock proofs rejected)
+- Verifies refund ticket structure
+
+### Proof Generation Test (`test/proof-generation.e2e-spec.ts`)
+
+Tests ZK proof generation internals:
+- Withdrawal proof generation
+- Refund proof generation
+- Double-spend slashing proof generation
+- RLN primitives (nullifiers, commitments)
+- Proof format compatibility with Solidity
+- Performance benchmarks
+
+## Contract Tests
+
+Foundry-based tests for Solidity smart contracts.
+
+```bash
+cd contracts
+forge test -vv
 ```
 
-## Key Test Files
+**Test coverage:**
+- Deposit functionality
+- Merkle tree updates
+- Withdrawal verification
+- Refund redemption
+- Slashing mechanisms
+- Access control
 
-### Integration Test Scripts
-- [`scripts/test-complete-flow.sh`](../scripts/test-complete-flow.sh) - Complete deposit → API → refund flow
-- [`scripts/test-double-spend.sh`](../scripts/test-double-spend.sh) - Double-spend prevention test
-- [`scripts/test-invalid-proofs.sh`](../scripts/test-invalid-proofs.sh) - Invalid proof rejection (28 tests)
-- [`scripts/test-refund-redemption.sh`](../scripts/test-refund-redemption.sh) - Onchain refund redemption
+## Testing Scripts
 
-### Helper Scripts
-- [`scripts/generate-proof.ts`](../scripts/generate-proof.ts) - Generate ZK proofs for API requests
-- [`scripts/test-proof-verification.ts`](../scripts/test-proof-verification.ts) - Test proof generation and double-spend detection
-- [`scripts/compute-poseidon.ts`](../scripts/compute-poseidon.ts) - Compute Poseidon hash for identity commitments
+Helper scripts for manual testing and debugging.
 
-### Contract Scripts
-- [`contracts/script/DeployZkApiCredits.s.sol`](../contracts/script/DeployZkApiCredits.s.sol) - Contract deployment script
+### Generate ZK Proof
+
+```bash
+npx ts-node scripts/testing/generate-proof.ts <secretKey> <ticketIndex>
+```
+
+Generates a complete ZK proof for testing API requests.
+
+### Compute Poseidon Hash
+
+```bash
+npx ts-node scripts/testing/compute-poseidon.ts <input>
+```
+
+Computes Poseidon hash for identity commitments.
+
+### Verify TEE Attestation
+
+```bash
+pnpm verify:attestation <url-or-file>
+```
+
+Verifies Intel TDX attestation quotes from Phala deployments.
+
+## CI/CD Testing
+
+GitHub Actions workflow (`.github/workflows/test.yml`) runs:
+
+1. Linter checks
+2. Unit tests
+3. Build verification
+4. Contract tests (Foundry)
+5. Anvil startup
+6. E2E tests
+
+All tests must pass before merging PRs.
+
+## What Each Test Proves
+
+### Unit Tests Validate:
+- ✅ Individual service logic
+- ✅ ZK proof structure validation
+- ✅ Database operations
+- ✅ Rate limiting mechanisms
+- ✅ EdDSA signature generation
+
+### E2E Tests Validate:
+- ✅ Complete deposit → service → refund flow
+- ✅ Real blockchain interaction (via Anvil)
+- ✅ Contract deployment and verification
+- ✅ ZK proof generation and API integration
+- ✅ Security enforcement (mock proof rejection)
+
+### Contract Tests Validate:
+- ✅ Smart contract state transitions
+- ✅ Access control mechanisms
+- ✅ Merkle tree correctness
+- ✅ Gas optimization
+- ✅ Edge cases and reverts
+
+### Proof Generation Tests Validate:
+- ✅ Withdrawal proof correctness
+- ✅ Refund proof correctness
+- ✅ Slashing proof correctness
+- ✅ RLN signal generation
+- ✅ Secret key recovery from double-spend
+- ✅ Proof format compatibility
+
+## Zero-Knowledge Properties
+
+The test suite validates these ZK properties:
+
+### Anonymity
+- Identity commitments hide secret keys
+- Merkle tree provides k-anonymity (k = number of deposits)
+- Server cannot link requests to deposit addresses
+
+### Rate Limiting
+- Each nullifier can only be used once
+- Nullifiers computed as `Hash(Hash(secretKey, ticketIndex))`
+- No centralized tracking needed
+
+### Slashing
+- Two signals with same nullifier reveal secret key
+- RLN equation: `signalY = secretKey + a * signalX`
+- Economic deterrent via stake slashing
+
+### Refund Security
+- EdDSA signatures are unforgeable
+- Server's public key verified onchain
+- Refunds can only be redeemed once
 
 ## Troubleshooting
 
 ### Anvil Not Running
-```bash
-Error: cannot connect to http://127.0.0.1:8545
+```
+Error: Anvil is not running
 ```
 **Solution:** Start Anvil in a separate terminal: `anvil`
 
-### API Server Not Running
-```bash
-curl: (7) Failed to connect to localhost port 3000
+### E2E Tests Timeout
 ```
-**Solution:** Start the API server: `pnpm start:dev`
-
-### Self-Signed Certificate Error
-```bash
-SSL certificate problem: self signed certificate
+Timeout waiting for Anvil
 ```
-**Solution:** Use `-k` flag with curl to bypass certificate validation in development
+**Solution:** Ensure Anvil is accessible at `http://127.0.0.1:8545`
 
-### Nullifier Already Used
-```bash
-{"statusCode":403,"message":"Nullifier already used"}
+### Contract Deployment Fails
 ```
-**Solution:** Generate a new proof with a different ticket index:
-```bash
-npx ts-node scripts/generate-proof.ts 12345 1  # Use index 1 instead of 0
+Failed to deploy contract
 ```
+**Solution:**
+- Check Anvil is running
+- Verify Foundry is installed: `forge --version`
+- Check contract compilation: `cd contracts && forge build`
 
-### Contract Address Mismatch
-**Solution:** Update `.env.local` with the deployed contract address from Step 2
+### Proof Generation Fails
+```
+Circuit artifacts not found
+```
+**Solution:** Ensure circuit artifacts are built in `circuits/build/`
 
-## Understanding the Zero-Knowledge Circuit
+### Jest Won't Exit
+```
+Jest did not exit one second after test run
+```
+**Solution:** This is expected with `forceExit: true` in jest-e2e.json (handles background processes)
 
-The ZK circuit proves the following statement:
+## Advanced Testing
 
-**Public Inputs:**
-- `merkleRoot`: Root of Merkle tree of all identity commitments (anonymity set)
-- `maxCost`: Maximum cost user is willing to pay
-- `initialDeposit`: User's initial deposit amount
-- `signalX`: Random signal for this request
+### Testing with Real Circuits
 
-**Public Outputs:**
-- `idCommitment = Hash(secretKey)`: User's anonymous identity
-- `nullifier = Hash(Hash(secretKey, ticketIndex))`: Prevents double-spending
-- `signalY = secretKey + Hash(secretKey, ticketIndex) * signalX`: Enables slashing
+Production circuits are in `circuits/`:
+- `withdrawal.circom` - Merkle membership + solvency proof
+- `refund_redemption.circom` - Refund ticket verification
+- `double_spend_slashing.circom` - Double-spend detection
 
-**Private Inputs:**
-- `secretKey`: User's secret key (never revealed)
-- `ticketIndex`: Sequential counter for rate limiting
+To test with real circuits:
+1. Compile circuits: `bash scripts/setup/compile-production-circuits.sh`
+2. Run trusted setup: `pnpm setup:circuit`
+3. E2E tests automatically use generated artifacts
 
-**Constraints:**
-1. `idCommitment` is in the Merkle tree (proves user made a deposit)
-2. `nullifier` is correctly computed from `secretKey` and `ticketIndex`
-3. `signalY` satisfies the RLN equation
-4. User has sufficient balance (`maxCost <= initialDeposit - spentSoFar`)
+### Performance Testing
 
-## Security Properties
+The proof generation test includes performance benchmarks:
+- Proof generation should complete in < 5 seconds
+- Concurrent proof generation is supported
+- Memory usage is tracked
 
-### Anonymity
-- Identity commitments are cryptographically hiding
-- Merkle tree provides k-anonymity where k = number of deposits
-- Server cannot link requests to deposit addresses
+### Security Testing
 
-### Rate Limiting
-- Each ticket index can only be used once per identity
-- Nullifiers are tracked to prevent reuse
-- No centralized rate limiter needed
+Key security validations:
+- Mock proofs are rejected (verified in e2e tests)
+- Nullifier uniqueness enforced
+- Double-spend attempts detected
+- Invalid proof structures rejected
+- Rate limiting works correctly
 
-### Slashing
-- Two signals with same nullifier form a linear system:
-  - `y1 = k + a*x1`
-  - `y2 = k + a*x2`
-- Solving reveals `k = (x2*y1 - x1*y2) / (x2 - x1)`
-- Anyone can claim the RLN stake by proving double-spend onchain
+## Test Data Management
 
-### Refund Security
-- EdDSA signatures are unforgeable
-- Server's public key is stored onchain
-- Refunds can only be redeemed once (nullifier tracking)
-
-## Implementation vs Original Proposal
-
-This test suite validates the implementation of the [ZK API Credits proposal](https://ethresear.ch/t/zk-api-usage-credits-llms-and-beyond/24104) by Davide Crapis & Vitalik Buterin.
-
-### Key Validation Points
-
-✅ **Core Protocol Matches**:
-- RLN nullifiers prevent double-spending (validated in `test-double-spend.sh`)
-- Dual staking (RLN + Policy) implemented correctly
-- Refund ticket accumulation with EdDSA signatures
-- Privacy via Poseidon hash commitments
-
-🔄 **Implementation Differences**:
-- Uses **Groth16** instead of ZK-STARK (faster, smaller proofs)
-- Three separate circuits instead of monolithic (modular, easier to audit)
-- Backend Merkle tree instead of fully onchain (pending improvement)
-
-⚠️ **Known Limitations**:
-- Mock circuit used for testing (production circuits: `withdrawal.circom`, `refund_redemption.circom`, `double_spend_slashing.circom`)
-- Merkle tree not fully onchain yet (creates server dependency)
-- Full solvency formula `(i+1)·C_max ≤ D+R` not yet in circuit
-
-See [OVERVIEW.md](./OVERVIEW.md#implementation-alignment-with-original-proposal) for detailed comparison.
+E2E tests are stateless:
+- Each test run generates fresh data
+- No test artifacts are committed
+- Anvil provides clean blockchain state
+- In-memory database for API server
 
 ## Next Steps
 
-- See [ZK.md](./ZK.md) for zero-knowledge proof architecture details
-- See [API_REFERENCE.md](./API_REFERENCE.md) for full API documentation
-- See [OVERVIEW.md](./OVERVIEW.md) for implementation status and comparison with original proposal
-- See [TRUSTED_SETUP_CEREMONY.md](./TRUSTED_SETUP_CEREMONY.md) for ceremony requirements
-- Deploy to a TEE for production security guarantees
+- [API_REFERENCE.md](./API_REFERENCE.md) - Full API documentation
+- [ZK.md](./ZK.md) - Zero-knowledge proof architecture
+- [OVERVIEW.md](./OVERVIEW.md) - System architecture and status
+- [TRUSTED_SETUP_CEREMONY.md](./TRUSTED_SETUP_CEREMONY.md) - Ceremony requirements

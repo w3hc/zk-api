@@ -61,23 +61,23 @@ cp .env.template .env.local
 
 ### Test
 
-```
-# Unit tests (434 tests)
+```bash
+# Unit tests
 pnpm test
 
-# End-to-end tests with real ZK proofs
-pnpm test:e2e
+# End-to-end tests (requires Anvil running)
+anvil                      # Terminal 1
+pnpm test:e2e             # Terminal 2
 
 # Contract tests (Foundry)
 cd contracts && forge test -vv
 
-# Integration tests (requires Anvil)
-anvil                      # Terminal 1
-pnpm test:zk               # Terminal 2 — basic contract tests
-pnpm test:zk:integration   # Contract + verifier integration check
-```
+# Quick quality checks (no e2e)
+pnpm dance                # format + lint + test + build + contracts
 
-> **Note:** Production Groth16 verifiers are integrated, so tests requiring ZK proofs must generate real proofs via the backend API or use mock verifiers. See [scripts/README-TESTING.md](scripts/README-TESTING.md).
+# Full quality checks (requires Anvil)
+pnpm dance:full           # includes e2e tests
+```
 
 ### Run locally
 
@@ -129,7 +129,6 @@ The provider layer is an abstraction — OpenAI, Stripe, and custom APIs plug in
 - [ZK.md](docs/ZK.md) — circuits and proofs
 - [TRUSTED_SETUP_CEREMONY.md](docs/TRUSTED_SETUP_CEREMONY.md) — ceremony details and process
 - [TESTING_GUIDE.md](docs/TESTING_GUIDE.md) — testing procedures
-- [scripts/README-TESTING.md](scripts/README-TESTING.md) — testing with production verifiers
 
 **Architecture**
 - [PROVIDERS.md](docs/PROVIDERS.md) — provider abstraction design
