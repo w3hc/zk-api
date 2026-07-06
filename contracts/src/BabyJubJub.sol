@@ -3,48 +3,64 @@ pragma solidity 0.8.35;
 
 /**
  * @title BabyJubJub
- * @notice Baby Jubjub elliptic curve operations for EdDSA signature verification
+ * @author ZK-API Team
+ * @notice Implements Baby Jubjub elliptic curve operations for EdDSA signature verification
  * @dev Based on ERC-2494 and iden3's circomlib implementation
- * https://eips.ethereum.org/EIPS/eip-2494
- * https://github.com/iden3/circomlib/blob/master/circuits/babyjub.circom
  *
- * Baby Jubjub is a twisted Edwards curve defined over the scalar field of bn128:
+ * Baby Jubjub is a twisted Edwards curve defined over the scalar field of BN128:
  * ax^2 + y^2 = 1 + dx^2y^2
- * where:
+ *
+ * Curve parameters:
  * - a = 168700
  * - d = 168696
- * - Order (subgroup) = 2736030358979909402780800718157159386076813972158567259200215660948447373041
+ * - Prime field: p = 21888242871839275222246405745257275088548364400416034343698204186575808495617
+ * - Subgroup order: 2736030358979909402780800718157159386076813972158567259200215660948447373041
+ *
+ * This library provides the cryptographic primitives needed for on-chain EdDSA signature
+ * verification, ensuring compatibility with circomlib circuits used in zero-knowledge proofs.
+ *
+ * References:
+ * - EIP-2494: https://eips.ethereum.org/EIPS/eip-2494
+ * - circomlib: https://github.com/iden3/circomlib/blob/master/circuits/babyjub.circom
  */
 library BabyJubJub {
-    // Curve parameters
+    /// @notice Prime field size for Baby Jubjub (same as BN128 scalar field)
     uint256 constant PRIME_Q =
         21888242871839275222246405745257275088548364400416034343698204186575808495617;
 
-    // Subgroup order
+    /// @notice Subgroup order - the number of points in the prime-order subgroup
     uint256 constant SUBORDER =
         2736030358979909402780800718157159386076813972158567259200215660948447373041;
 
-    // Generator point
+    /// @notice Generator point X coordinate - base point for scalar multiplication
     uint256 constant GX =
         5299619240641551281634865583518297030282874472190772894086521144482721001553;
+
+    /// @notice Generator point Y coordinate - base point for scalar multiplication
     uint256 constant GY =
         16950150798460657717958625567821834550301663161624707787222815936182638968203;
 
-    // Curve coefficients for twisted Edwards: ax^2 + y^2 = 1 + dx^2y^2
-    uint256 constant D =
-        168696;
-    uint256 constant A =
-        168700;
+    /// @notice Curve coefficient 'd' in twisted Edwards form: ax^2 + y^2 = 1 + dx^2y^2
+    uint256 constant D = 168696;
+
+    /// @notice Curve coefficient 'a' in twisted Edwards form: ax^2 + y^2 = 1 + dx^2y^2
+    uint256 constant A = 168700;
 
     /**
-     * @notice Add two points on the Baby Jubjub curve
-     * @dev Twisted Edwards addition formula
-     * @param x1 X coordinate of first point
-     * @param y1 Y coordinate of first point
-     * @param x2 X coordinate of second point
-     * @param y2 Y coordinate of second point
-     * @return x3 X coordinate of result
-     * @return y3 Y coordinate of result
+     * @notice Add two points on the Baby Jubjub curve using the twisted Edwards addition law
+     * @dev Implements the complete addition formula for twisted Edwards curves:
+     *      x3 = (x1*y2 + y1*x2) / (1 + d*x1*x2*y1*y2)
+     *      y3 = (y1*y2 - a*x1*x2) / (1 - d*x1*x2*y1*y2)
+     *
+     *      All operations are performed modulo PRIME_Q to ensure results stay in the field.
+     *      This formula is complete (works for all points including the identity).
+     *
+     * @param x1 X coordinate of the first point
+     * @param y1 Y coordinate of the first point
+     * @param x2 X coordinate of the second point
+     * @param y2 Y coordinate of the second point
+     * @return x3 X coordinate of the resulting point
+     * @return y3 Y coordinate of the resulting point
      */
     function pointAdd(
         uint256 x1,
@@ -81,13 +97,25 @@ library BabyJubJub {
     }
 
     /**
-     * @notice Scalar multiplication on Baby Jubjub curve
-     * @dev Uses optimized double-and-add algorithm (skip leading zeros)
-     * @param x X coordinate of base point
-     * @param y Y coordinate of base point
-     * @param scalar Scalar to multiply by
-     * @return rx X coordinate of result
-     * @return ry Y coordinate of result
+     * @notice Multiply a point on the Baby Jubjub curve by a scalar
+     * @dev Implements the double-and-add algorithm with optimizations:
+     *      - Skips leading zero bits to reduce iterations
+     *      - Processes scalar from most significant to least significant bit
+     *      - Returns point at infinity (0, 1) for scalar = 0
+     *
+     *      The algorithm works by:
+     *      1. Finding the highest set bit in the scalar
+     *      2. Iterating through each bit from high to low
+     *      3. Doubling the accumulator for each bit
+     *      4. Adding the base point when the bit is 1
+     *
+     *      This is the standard method for efficient scalar multiplication in ECC.
+     *
+     * @param x X coordinate of the base point to multiply
+     * @param y Y coordinate of the base point to multiply
+     * @param scalar The scalar value to multiply the point by
+     * @return rx X coordinate of the resulting point (scalar * P)
+     * @return ry Y coordinate of the resulting point (scalar * P)
      */
     function pointMul(
         uint256 x,
@@ -131,22 +159,33 @@ library BabyJubJub {
     }
 
     /**
-     * @notice Compute modular inverse using Fermat's little theorem
-     * @dev a^(-1) = a^(p-2) mod p for prime p
-     * @param a Number to invert
-     * @param p Prime modulus
-     * @return Modular inverse of a
+     * @notice Compute the modular multiplicative inverse of a number
+     * @dev Uses Fermat's Little Theorem: for prime p and a ≠ 0 mod p,
+     *      a^(p-1) ≡ 1 (mod p), therefore a^(-1) ≡ a^(p-2) (mod p)
+     *
+     *      This is more efficient than the extended Euclidean algorithm for prime moduli.
+     *
+     * @param a The number to find the inverse of (must be non-zero mod p)
+     * @param p The prime modulus
+     * @return result The modular inverse of a, such that (a * result) mod p = 1
      */
     function invmod(uint256 a, uint256 p) internal pure returns (uint256) {
         return expmod(a, p - 2, p);
     }
 
     /**
-     * @notice Modular exponentiation
-     * @param base Base
-     * @param exponent Exponent
-     * @param modulus Modulus
-     * @return Result of base^exponent mod modulus
+     * @notice Compute modular exponentiation: (base^exponent) mod modulus
+     * @dev Implements the binary exponentiation algorithm (square-and-multiply):
+     *      - Processes exponent bits from least significant to most significant
+     *      - Squares the base for each bit position
+     *      - Multiplies result by base when bit is 1
+     *
+     *      This algorithm has O(log n) complexity instead of O(n) for naive exponentiation.
+     *
+     * @param base The base value to exponentiate
+     * @param exponent The exponent to raise the base to
+     * @param modulus The modulus to reduce by after each operation
+     * @return result The result of (base^exponent) mod modulus
      */
     function expmod(
         uint256 base,
@@ -166,11 +205,16 @@ library BabyJubJub {
     }
 
     /**
-     * @notice Verify a point is on the Baby Jubjub curve
-     * @dev Check: ax^2 + y^2 = 1 + dx^2y^2
-     * @param x X coordinate
-     * @param y Y coordinate
-     * @return True if point is on curve
+     * @notice Verify that a point lies on the Baby Jubjub curve
+     * @dev Checks the twisted Edwards curve equation: ax^2 + y^2 = 1 + dx^2y^2
+     *
+     *      A point is valid if and only if its coordinates satisfy this equation.
+     *      This check is essential for validating EdDSA public keys and preventing
+     *      attacks using invalid curve points.
+     *
+     * @param x The X coordinate of the point to verify
+     * @param y The Y coordinate of the point to verify
+     * @return valid True if the point satisfies the curve equation, false otherwise
      */
     function isOnCurve(uint256 x, uint256 y) internal pure returns (bool) {
         uint256 x2 = mulmod(x, x, PRIME_Q);
