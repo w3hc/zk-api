@@ -50,6 +50,7 @@ template MerkleTreeChecker(levels) {
  * 1. User knows secretKey such that Poseidon(secretKey) = idCommitment
  * 2. idCommitment is in Merkle tree with given root
  * 3. Valid RLN signal generation (prevents double-spending)
+ * 4. Withdrawal is bound to a specific recipient address (prevents front-running)
  *
  * WITHOUT revealing the secretKey
  */
@@ -63,6 +64,7 @@ template WithdrawalProof(TREE_DEPTH) {
     // Public inputs (visible onchain)
     signal input signalX;
     signal input merkleRootExpected;
+    signal input recipient;  // Ethereum address as uint160 - prevents front-running
 
     // Public outputs
     signal output nullifier;
@@ -106,4 +108,4 @@ template WithdrawalProof(TREE_DEPTH) {
 }
 
 // Export with 20-level Merkle tree (supports ~1 million users)
-component main {public [signalX, merkleRootExpected]} = WithdrawalProof(20);
+component main {public [signalX, merkleRootExpected, recipient]} = WithdrawalProof(20);

@@ -12,6 +12,7 @@ include "../node_modules/circomlib/circuits/comparators.circom";
  * 2. User has valid refund ticket signed by server (EdDSA signature)
  * 3. Refund nullifier is correctly computed
  * 4. Refund value matches claimed amount
+ * 5. Refund is bound to a specific recipient address (prevents front-running)
  *
  * WITHOUT revealing the secret key or refund details
  */
@@ -30,6 +31,7 @@ template RefundRedemptionProof() {
     signal input refundValueClaimed;      // Must match refundValue
     signal input serverPublicKeyX;        // Server's EdDSA public key - MUST match on-chain value
     signal input serverPublicKeyY;        // Server's EdDSA public key - MUST match on-chain value
+    signal input recipient;               // Ethereum address as uint160 - prevents front-running
 
     // Public outputs
     signal output nullifier;
@@ -84,4 +86,4 @@ template RefundRedemptionProof() {
     signatureVerifier.M <== messageHash.out;
 }
 
-component main {public [signalX, refundValueClaimed, serverPublicKeyX, serverPublicKeyY]} = RefundRedemptionProof();
+component main {public [signalX, refundValueClaimed, serverPublicKeyX, serverPublicKeyY, recipient]} = RefundRedemptionProof();

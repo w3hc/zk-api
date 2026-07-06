@@ -230,37 +230,44 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
      * @param _idCommitment The user's identity commitment
      * @param _recipient Address to receive the withdrawn funds
      * @param _proof ZK proof components [pA, pB, pC] in Groth16 format
-     * @param _publicSignals Public inputs [idCommitment, merkleRoot, nullifier, x, y, pathElements]
+     * @param _publicSignals Public inputs [signalX, merkleRootExpected, recipient, nullifier, signalY, idCommitment, merkleRoot]
      * @dev Verifies a ZK proof that the caller knows the secret key without revealing it
+     * @dev The recipient is bound into the proof to prevent front-running attacks (C-2 fix)
      */
     function withdraw(
         bytes32 _idCommitment,
         address payable _recipient,
         uint256[8] calldata _proof,
-        uint256[6] calldata _publicSignals
+        uint256[7] calldata _publicSignals
     ) external nonReentrant {
         Deposit storage userDeposit = deposits[_idCommitment];
         if (!userDeposit.active) revert DepositNotFound();
 
         // Verify ZK proof of ownership
-        // Public signals: [signalX (input), merkleRootExpected (input), nullifier (output), signalY (output), idCommitment (output), merkleRoot (output)]
+        // Public signals: [signalX (input), merkleRootExpected (input), recipient (input), nullifier (output), signalY (output), idCommitment (output), merkleRoot (output)]
         // The proof verifies that:
         // 1. Prover knows secretKey such that Poseidon(secretKey) = idCommitment
         // 2. idCommitment is in the Merkle tree with root = merkleRoot
         // 3. Valid RLN signal generation (signalX, signalY) for the withdrawal
+        // 4. Withdrawal is bound to the specified recipient (prevents front-running - C-2 fix)
         if (!withdrawalVerifier.verifyWithdrawalProof(_proof, _publicSignals)) {
             revert InvalidProof();
         }
 
         // Verify public signals match expected values
-        // _publicSignals[4] is the idCommitment output
+        // _publicSignals[2] is the recipient input - CRITICAL: prevents front-running (C-2 fix)
         require(
-            _publicSignals[4] == uint256(_idCommitment),
+            _publicSignals[2] == uint256(uint160(_recipient)),
+            'recipient mismatch'
+        );
+        // _publicSignals[5] is the idCommitment output
+        require(
+            _publicSignals[5] == uint256(_idCommitment),
             'idCommitment mismatch'
         );
-        // _publicSignals[5] is the merkleRoot output
+        // _publicSignals[6] is the merkleRoot output
         require(
-            _publicSignals[5] == uint256(merkleRoot),
+            _publicSignals[6] == uint256(merkleRoot),
             'merkleRoot mismatch'
         );
 
@@ -426,12 +433,13 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
      * @param _refundValue Total refund amount in wei
      * @param _recipient Address to receive the refund
      * @param _proof ZK proof components [pA, pB, pC] in Groth16 format
-     * @param _publicSignals Public inputs [idCommitment, merkleRoot, nullifier, x, y]
+     * @param _publicSignals Public inputs [signalX, refundValueClaimed, serverPublicKeyX, serverPublicKeyY, recipient, nullifier, signalY, idCommitment]
      * @dev Verifies a ZK proof that validates EdDSA signatures on refund tickets
      * @dev The circuit proves:
      *      1. User has valid refund tickets signed by the server
      *      2. Signatures are valid (EdDSA verification in circuit)
      *      3. Total refund amount matches the claimed value
+     *      4. Refund is bound to the specified recipient (prevents front-running - C-2 fix)
      */
     function redeemRefund(
         bytes32 _idCommitment,
@@ -439,7 +447,7 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         uint256 _refundValue,
         address payable _recipient,
         uint256[8] calldata _proof,
-        uint256[7] calldata _publicSignals
+        uint256[8] calldata _publicSignals
     ) external nonReentrant {
         Deposit storage userDeposit = deposits[_idCommitment];
         if (!userDeposit.active) revert DepositNotFound();
@@ -451,13 +459,14 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         if (slashedNullifiers[_nullifier]) revert AlreadySlashed();
 
         // Verify ZK proof of valid refund redemption
-        // Public signals: [signalX (input), refundValueClaimed (input), serverPublicKeyX (input), serverPublicKeyY (input), nullifier (output), signalY (output), idCommitment (output)]
+        // Public signals: [signalX (input), refundValueClaimed (input), serverPublicKeyX (input), serverPublicKeyY (input), recipient (input), nullifier (output), signalY (output), idCommitment (output)]
         // The proof verifies:
         // 1. User has valid refund ticket with EdDSA signature from server
         // 2. Signature is cryptographically valid (verified in circuit)
         // 3. Refund value matches _refundValue
         // 4. Nullifier is correctly computed from secretKey and ticketIndex
-        // 5. Server public key matches the on-chain stored value (CRITICAL for security)
+        // 5. Server public key matches the on-chain stored value (CRITICAL for security - C-1 fix)
+        // 6. Refund is bound to the specified recipient (CRITICAL for security - C-2 fix)
         if (!refundVerifier.verifyRefundProof(_proof, _publicSignals)) {
             revert InvalidProof();
         }
@@ -468,24 +477,29 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
             _publicSignals[1] == _refundValue,
             'refundValue mismatch'
         );
-        // _publicSignals[2] is the serverPublicKeyX input - CRITICAL: prevents forged refunds
+        // _publicSignals[2] is the serverPublicKeyX input - CRITICAL: prevents forged refunds (C-1 fix)
         require(
             _publicSignals[2] == uint256(serverPublicKey.x),
             'serverPublicKeyX mismatch'
         );
-        // _publicSignals[3] is the serverPublicKeyY input - CRITICAL: prevents forged refunds
+        // _publicSignals[3] is the serverPublicKeyY input - CRITICAL: prevents forged refunds (C-1 fix)
         require(
             _publicSignals[3] == uint256(serverPublicKey.y),
             'serverPublicKeyY mismatch'
         );
-        // _publicSignals[4] is the nullifier output
+        // _publicSignals[4] is the recipient input - CRITICAL: prevents front-running (C-2 fix)
         require(
-            _publicSignals[4] == uint256(_nullifier),
+            _publicSignals[4] == uint256(uint160(_recipient)),
+            'recipient mismatch'
+        );
+        // _publicSignals[5] is the nullifier output
+        require(
+            _publicSignals[5] == uint256(_nullifier),
             'nullifier mismatch'
         );
-        // _publicSignals[6] is the idCommitment output
+        // _publicSignals[7] is the idCommitment output
         require(
-            _publicSignals[6] == uint256(_idCommitment),
+            _publicSignals[7] == uint256(_idCommitment),
             'idCommitment mismatch'
         );
 

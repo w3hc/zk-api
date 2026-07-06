@@ -262,6 +262,7 @@ export class ZkApiController {
     const secretKey = BigInt(body.secretKey);
     const ticketIndex = BigInt(body.ticketIndex);
     const signalX = BigInt(body.signalX);
+    const recipient = body.recipient; // C-2 fix: recipient binding
 
     // Calculate identity commitment and nullifier
     const idCommitment =
@@ -296,6 +297,7 @@ export class ZkApiController {
         refundTimestamp,
         refundSignature: refundTicket.signature,
         serverPublicKey,
+        recipient, // C-2 fix: bind recipient to proof
       });
 
     return {
