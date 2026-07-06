@@ -19,15 +19,26 @@ Main contract implementing the ZK API Credits protocol.
 
 **Key Functions:**
 - `deposit(bytes32 idCommitment)` - Deposit ETH with anonymous identity
-- `withdraw(bytes32 idCommitment, address payable recipient, bytes32 secretKey)` - Withdraw funds
-- `slashDoubleSpend(...)` - Slash double-spenders and reward reporters
-- `slashPolicyViolation(...)` - Slash ToS violators (server only)
-- `redeemRefund(...)` - Redeem server-signed refund tickets
+- `withdraw(bytes32 idCommitment, address payable recipient, uint256[8] proof, uint256[6] publicSignals)` - Withdraw funds with ZK proof
+- `slashDoubleSpend(bytes32 secretKey, bytes32 nullifier, bytes32 idCommitment, uint256[8] proof, uint256[4] publicSignals)` - Slash double-spenders and reward reporters
+- `slashPolicyViolation(bytes32 nullifier, bytes32 idCommitment, uint256[8] proof, uint256[5] publicSignals)` - Slash ToS violators (server only)
+- `redeemRefund(bytes32 idCommitment, bytes32 nullifier, uint256 refundValue, address payable recipient, uint256[8] proof, uint256[7] publicSignals)` - Redeem server-signed refund tickets
 
-### PoseidonHasher.sol
-Wrapper library for Poseidon hash functions (uses poseidon-solidity).
+### Supporting Contracts
 
-**Critical:** This contract uses Poseidon hashing to maintain compatibility with the ZK circuit. Using Keccak256 would break proof verification.
+#### PoseidonHasher.sol
+Wrapper library for Poseidon hash functions (uses poseidon-solidity). Provides convenience functions for hashing 1-5 field elements.
+
+#### BabyJubJub.sol
+Baby Jubjub elliptic curve operations for EdDSA signature verification. Implements point addition, scalar multiplication, and curve validation.
+
+#### Verifier Contracts
+- `WithdrawalVerifier.sol` - Groth16 verifier for withdrawal proofs
+- `RefundRedemptionVerifier.sol` - Groth16 verifier for refund redemption proofs
+- `DoubleSpendSlashingVerifier.sol` - Groth16 verifier for double-spend slashing proofs
+- `PolicyViolationVerifier.sol` - Groth16 verifier for policy violation proofs
+
+**Critical:** All contracts use Poseidon hashing to maintain compatibility with the ZK circuits. Using Keccak256 would break proof verification.
 
 ## Building
 
@@ -66,13 +77,24 @@ forge test --match-test test_Deposit_Success
 forge test --gas-report
 ```
 
+**Test Coverage:**
+```bash
+# Run coverage report
+forge coverage
+```
+
 **Test Results:**
 ```
-✅ All 18 tests passing
+✅ All 24 tests passing
+✅ 85.47% statement coverage on ZkApiCredits.sol
+✅ 86.96% function coverage on ZkApiCredits.sol
+✅ 50.00% branch coverage on ZkApiCredits.sol
 ✅ Identity commitments use Poseidon hash
 ✅ Merkle tree uses Poseidon hash with full node storage
 ✅ Merkle proof generation verified for >2 leaves
-✅ Refund signatures verified with Poseidon hash
+✅ Refund redemption with EdDSA signature verification
+✅ Double-spend slashing with secret key extraction
+✅ Policy violation slashing (server-only)
 ```
 
 ## Hash Function Compatibility ⚠️
@@ -99,7 +121,7 @@ The circuit uses `circomlib/Poseidon`, and the contract uses `poseidon-solidity`
 anvil
 
 # Terminal 2: Deploy contract
-forge script script/Deploy.s.sol:DeployScript --rpc-url http://127.0.0.1:8545 --broadcast
+forge script script/DeployZkApiCredits.s.sol:DeployZkApiCredits --rpc-url http://127.0.0.1:8545 --broadcast
 ```
 
 ### Testnet
@@ -107,10 +129,11 @@ forge script script/Deploy.s.sol:DeployScript --rpc-url http://127.0.0.1:8545 --
 ```bash
 # Set environment variables
 export PRIVATE_KEY=0x...
+export SERVER_ADDRESS=0x...
 export RPC_URL=https://sepolia.infura.io/v3/...
 
 # Deploy
-forge script script/Deploy.s.sol:DeployScript \
+forge script script/DeployZkApiCredits.s.sol:DeployZkApiCredits \
   --rpc-url $RPC_URL \
   --private-key $PRIVATE_KEY \
   --broadcast \
@@ -197,7 +220,7 @@ forge doc
 forge coverage
 
 # Deploy to local testnet
-forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
+forge script script/DeployZkApiCredits.s.sol:DeployZkApiCredits --rpc-url http://localhost:8545 --broadcast
 
 # Interact with contract
 cast call <CONTRACT_ADDRESS> "merkleRoot()" --rpc-url http://localhost:8545
@@ -208,15 +231,24 @@ cast call <CONTRACT_ADDRESS> "merkleRoot()" --rpc-url http://localhost:8545
 ```
 contracts/
 ├── src/
-│   ├── ZkApiCredits.sol       # Main contract
-│   └── PoseidonHasher.sol     # Poseidon hash wrapper
+│   ├── ZkApiCredits.sol                    # Main contract
+│   ├── PoseidonHasher.sol                  # Poseidon hash wrapper
+│   ├── BabyJubJub.sol                      # EdDSA curve operations
+│   ├── WithdrawalVerifier.sol              # Withdrawal proof verifier (auto-generated)
+│   ├── RefundRedemptionVerifier.sol        # Refund proof verifier (auto-generated)
+│   ├── DoubleSpendSlashingVerifier.sol     # Slashing proof verifier (auto-generated)
+│   └── PolicyViolationVerifier.sol         # Policy proof verifier (auto-generated)
 ├── test/
-│   └── ZkApiCredits.t.sol     # Foundry tests
+│   ├── ZkApiCredits.t.sol                  # Foundry tests (24 tests)
+│   ├── MockWithdrawalVerifier.sol          # Mock verifier for testing
+│   ├── MockRefundVerifier.sol              # Mock verifier for testing
+│   ├── MockSlashingVerifier.sol            # Mock verifier for testing
+│   └── MockPolicyVerifier.sol              # Mock verifier for testing
 ├── script/
-│   └── Deploy.s.sol           # Deployment script
-├── lib/                        # Foundry dependencies
-├── remappings.txt             # Import path mappings
-└── foundry.toml               # Foundry configuration
+│   └── DeployZkApiCredits.s.sol           # Deployment script
+├── lib/                                    # Foundry dependencies
+├── remappings.txt                          # Import path mappings
+└── foundry.toml                            # Foundry configuration
 ```
 
 ## Related Documentation
@@ -234,15 +266,37 @@ contracts/
 - [Cast CLI Reference](https://book.getfoundry.sh/reference/cast/)
 - [Anvil Documentation](https://book.getfoundry.sh/reference/anvil/)
 
+## Code Quality
+
+### Solidity Version
+All contracts use `pragma solidity 0.8.35;` for consistency and to avoid compiler warnings.
+
+### NatSpec Documentation
+All contracts include comprehensive NatSpec comments:
+- `@title` - Contract/library title
+- `@author` - Author attribution
+- `@notice` - User-facing function description
+- `@dev` - Developer notes and implementation details
+- `@param` - Parameter descriptions
+- `@return` - Return value descriptions
+
+### Linting
+Foundry linting is disabled during build (`lint_on_build = false`) to suppress warnings from auto-generated verifier contracts. Named imports are used throughout for clarity:
+```solidity
+import {ReentrancyGuard} from '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
+```
+
 ## Contributing
 
 When modifying contracts:
 1. **Maintain Poseidon hash compatibility** - Never replace with Keccak256
 2. **Run all tests** - `forge test`
-3. **Check gas usage** - `forge test --gas-report`
-4. **Format code** - `forge fmt`
-5. **Update tests** - Add tests for new functionality
-6. **Document changes** - Update this README and related docs
+3. **Check coverage** - `forge coverage` (aim for >85% on core contracts)
+4. **Check gas usage** - `forge test --gas-report`
+5. **Format code** - `forge fmt`
+6. **Update tests** - Add tests for new functionality
+7. **Update NatSpec** - Keep documentation comprehensive and educational
+8. **Document changes** - Update this README and related docs
 
 ## License
 

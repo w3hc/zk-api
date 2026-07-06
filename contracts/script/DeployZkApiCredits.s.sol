@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0
-pragma solidity ^0.8.13;
+pragma solidity 0.8.35;
 
-import 'forge-std/Script.sol';
-import '../src/ZkApiCredits.sol';
+import {Script, console} from 'forge-std/Script.sol';
+import {ZkApiCredits} from '../src/ZkApiCredits.sol';
 
 contract DeployZkApiCredits is Script {
     function run() external {

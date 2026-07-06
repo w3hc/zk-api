@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0
-pragma solidity ^0.8.13;
+pragma solidity 0.8.35;
 
 /**
  * @title MockRefundVerifier
@@ -14,7 +14,7 @@ contract MockRefundVerifier {
      */
     function verifyRefundProof(
         uint[8] calldata proof,
-        uint[5] calldata /* publicSignals */
+        uint[7] calldata /* publicSignals */
     ) public pure returns (bool) {
         // Simple mock: valid if first proof element is non-zero
         return proof[0] != 0;
