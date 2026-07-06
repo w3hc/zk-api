@@ -24,6 +24,7 @@ import {
   GenerateSlashingProofDto,
   ProofResponseDto,
 } from './dto/proof-generation.dto';
+import { RefundSignerService } from './refund-signer.service';
 
 @ApiTags('App')
 @Controller('zk-api')
@@ -34,6 +35,7 @@ export class ZkApiController {
     private readonly nullifierStore: NullifierStoreService,
     private readonly costEstimationService: CostEstimationService,
     private readonly proofGenService: ProofGenService,
+    private readonly refundSignerService: RefundSignerService,
   ) {}
 
   @Post('request')
@@ -257,13 +259,7 @@ export class ZkApiController {
     const ticketIndex = BigInt(body.ticketIndex);
     const signalX = BigInt(body.signalX);
 
-    const { proof, publicSignals } =
-      await this.proofGenService.generateRefundRedemptionProof({
-        secretKey,
-        ticketIndex,
-        signalX,
-      });
-
+    // Calculate identity commitment and nullifier
     const idCommitment =
       await this.proofGenService.generateIdCommitment(secretKey);
     const { nullifier } = await this.proofGenService.generateRLNSignal(
@@ -271,6 +267,32 @@ export class ZkApiController {
       ticketIndex,
       signalX,
     );
+
+    // Generate mock refund ticket for testing/development
+    const refundValue = BigInt(1000000); // 1M wei mock refund
+    const refundTimestamp = Math.floor(Date.now() / 1000);
+
+    const refundTicket = await this.refundSignerService.signRefund({
+      idCommitment: '0x' + idCommitment.toString(16),
+      nullifier: '0x' + nullifier.toString(16),
+      value: refundValue.toString(),
+      timestamp: refundTimestamp,
+    });
+
+    // Get server's public key
+    const serverPublicKey = await this.refundSignerService.getPublicKey();
+
+    // Generate proof with the signed refund ticket
+    const { proof, publicSignals } =
+      await this.proofGenService.generateRefundRedemptionProof({
+        secretKey,
+        ticketIndex,
+        signalX,
+        refundValue,
+        refundTimestamp,
+        refundSignature: refundTicket.signature,
+        serverPublicKey,
+      });
 
     return {
       proof: proof.map((p) => '0x' + BigInt(p).toString(16)),

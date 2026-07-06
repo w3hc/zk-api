@@ -409,19 +409,17 @@ export class BlockchainService implements OnModuleInit {
   }
 
   /**
-   * Redeem a signed refund ticket onchain
+   * Redeem a refund ticket onchain using ZK proof
+   * @param params Refund parameters including proof
+   * @returns Transaction hash
    */
   async redeemRefund(params: {
     idCommitment: string;
     nullifier: string;
     refundValue: string;
-    timestamp: number;
-    signature: {
-      R8x: string;
-      R8y: string;
-      S: string;
-    };
     recipient: string;
+    proof: number[];
+    publicSignals: bigint[];
   }): Promise<string> {
     if (!this.contract || !this.wallet) {
       throw new Error(
@@ -434,13 +432,14 @@ export class BlockchainService implements OnModuleInit {
         `Redeeming refund for nullifier ${params.nullifier}, amount: ${params.refundValue} wei`,
       );
 
+      // Contract expects: redeemRefund(bytes32, bytes32, uint256, address, uint256[8], uint256[7])
       const tx = (await this.contract.redeemRefund(
         params.idCommitment,
         params.nullifier,
         params.refundValue,
-        params.timestamp,
-        params.signature,
         params.recipient,
+        params.proof,
+        params.publicSignals,
       )) as ethers.ContractTransactionResponse;
 
       this.logger.log(`Refund redemption transaction submitted: ${tx.hash}`);

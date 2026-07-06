@@ -193,12 +193,14 @@ function deposit(bytes32 idCommitment) external payable
 // Withdraw unused funds
 function withdraw(bytes32 idCommitment, address payable recipient, bytes32 secretKey) external
 
-// Redeem refund tickets onchain
+// Redeem refund tickets onchain with ZK proof (H-4 fix: now proof-based)
 function redeemRefund(
+    bytes32 idCommitment,
     bytes32 nullifier,
-    uint256 value,
-    uint256 timestamp,
-    uint256[3] calldata signature
+    uint256 refundValue,
+    address payable recipient,
+    uint256[8] calldata proof,
+    uint256[7] calldata publicSignals
 ) external
 
 // Slash double-spenders
