@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0
-pragma solidity ^0.8.13;
+pragma solidity 0.8.35;
 
 /**
  * @title MockRefundVerifier

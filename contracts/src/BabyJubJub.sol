@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0
-pragma solidity ^0.8.13;
+pragma solidity 0.8.35;
 
 /**
  * @title BabyJubJub
@@ -100,7 +100,6 @@ library BabyJubJub {
         }
 
         // Find the highest set bit to avoid unnecessary iterations
-        uint256 remaining = scalar;
         uint256 px = x;
         uint256 py = y;
 

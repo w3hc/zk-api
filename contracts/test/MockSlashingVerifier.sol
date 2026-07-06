@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0
-pragma solidity ^0.8.13;
+pragma solidity 0.8.35;
 
 /**
  * @title MockSlashingVerifier
@@ -10,12 +10,11 @@ contract MockSlashingVerifier {
     /**
      * @notice Verify a slashing proof
      * @param proof The Groth16 proof components [pA, pB, pC]
-     * @param publicSignals Public inputs [secretKeyClaimed, nullifierExpected, idCommitment, nullifier]
      * @return bool True if the proof is valid (non-zero first element)
      */
     function verifySlashingProof(
         uint[8] calldata proof,
-        uint[4] calldata publicSignals
+        uint[4] calldata /* publicSignals */
     ) public pure returns (bool) {
         // Simple mock: valid if first proof element is non-zero
         // This allows tests to distinguish between valid and invalid proofs

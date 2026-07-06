@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: LGPL-3.0
-pragma solidity ^0.8.13;
+pragma solidity 0.8.35;
 
-import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
-import '@openzeppelin/contracts/utils/Pausable.sol';
-import '@openzeppelin/contracts/access/Ownable.sol';
-import './PoseidonHasher.sol';
-import './BabyJubJub.sol';
-import './WithdrawalVerifier.sol';
-import './RefundRedemptionVerifier.sol';
-import './DoubleSpendSlashingVerifier.sol';
-import './PolicyViolationVerifier.sol';
+import {ReentrancyGuard} from '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
+import {Pausable} from '@openzeppelin/contracts/utils/Pausable.sol';
+import {Ownable} from '@openzeppelin/contracts/access/Ownable.sol';
+import {PoseidonHasher} from './PoseidonHasher.sol';
+import {BabyJubJub} from './BabyJubJub.sol';
+import {WithdrawalVerifier} from './WithdrawalVerifier.sol';
+import {RefundRedemptionVerifier} from './RefundRedemptionVerifier.sol';
+import {DoubleSpendSlashingVerifier} from './DoubleSpendSlashingVerifier.sol';
+import {PolicyViolationVerifier} from './PolicyViolationVerifier.sol';
 
 /**
  * @title ZkApiCredits

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0
-pragma solidity ^0.8.13;
+pragma solidity 0.8.35;
 
-import 'poseidon-solidity/PoseidonT2.sol';
-import 'poseidon-solidity/PoseidonT3.sol';
+import {PoseidonT2} from 'poseidon-solidity/PoseidonT2.sol';
+import {PoseidonT3} from 'poseidon-solidity/PoseidonT3.sol';
 
 /**
  * @title PoseidonHasher

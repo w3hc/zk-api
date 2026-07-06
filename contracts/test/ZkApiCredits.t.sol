@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: LGPL-3.0
-pragma solidity ^0.8.13;
+pragma solidity 0.8.35;
 
-import 'forge-std/Test.sol';
-import '../src/ZkApiCredits.sol';
-import '../src/PoseidonHasher.sol';
-import '../src/WithdrawalVerifier.sol';
-import '../src/RefundRedemptionVerifier.sol';
-import '../src/DoubleSpendSlashingVerifier.sol';
-import '../src/PolicyViolationVerifier.sol';
-import './MockWithdrawalVerifier.sol';
-import './MockSlashingVerifier.sol';
-import './MockRefundVerifier.sol';
-import './MockPolicyVerifier.sol';
+import {Test} from 'forge-std/Test.sol';
+import {ZkApiCredits} from '../src/ZkApiCredits.sol';
+import {PoseidonHasher} from '../src/PoseidonHasher.sol';
+import {WithdrawalVerifier} from '../src/WithdrawalVerifier.sol';
+import {RefundRedemptionVerifier} from '../src/RefundRedemptionVerifier.sol';
+import {DoubleSpendSlashingVerifier} from '../src/DoubleSpendSlashingVerifier.sol';
+import {PolicyViolationVerifier} from '../src/PolicyViolationVerifier.sol';
+import {MockWithdrawalVerifier} from './MockWithdrawalVerifier.sol';
+import {MockSlashingVerifier} from './MockSlashingVerifier.sol';
+import {MockRefundVerifier} from './MockRefundVerifier.sol';
+import {MockPolicyVerifier} from './MockPolicyVerifier.sol';
 
 contract ZkApiCreditsTest is Test {
     ZkApiCredits public zkApi;
