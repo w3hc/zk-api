@@ -255,9 +255,9 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
         }
 
         // Verify public signals match expected values
-        // _publicSignals[2] is the recipient input - CRITICAL: prevents front-running ()
+        // _publicSignals[2] is the recipient input - CRITICAL: prevents front-running
         require(
-            _publicSignals[2] == uint256(uint160(_recipient)),
+            _publicSignals[2] == uint256(uint160(address(_recipient))),
             'recipient mismatch'
         );
         // _publicSignals[5] is the idCommitment output
@@ -487,9 +487,9 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
             _publicSignals[3] == uint256(serverPublicKey.y),
             'serverPublicKeyY mismatch'
         );
-        // _publicSignals[4] is the recipient input - CRITICAL: prevents front-running ()
+        // _publicSignals[4] is the recipient input - CRITICAL: prevents front-running
         require(
-            _publicSignals[4] == uint256(uint160(_recipient)),
+            _publicSignals[4] == uint256(uint160(address(_recipient))),
             'recipient mismatch'
         );
         // _publicSignals[5] is the nullifier output

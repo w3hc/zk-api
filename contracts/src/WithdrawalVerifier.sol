@@ -212,16 +212,12 @@ contract WithdrawalVerifier {
     function verifyWithdrawalProof(
         uint256[8] calldata _proof,
         uint256[7] calldata _publicSignals
-    ) public view returns (bool) {
-        uint[2] memory pA = [_proof[0], _proof[1]];
-        uint[2][2] memory pB = [[_proof[2], _proof[3]], [_proof[4], _proof[5]]];
-        uint[2] memory pC = [_proof[6], _proof[7]];
-
-        uint[7] memory pubSignals;
-        for (uint i = 0; i < 7; i++) {
-            pubSignals[i] = _publicSignals[i];
-        }
-
-        return verifyProof(pA, pB, pC, pubSignals);
+    ) external view returns (bool) {
+        return this.verifyProof(
+            [_proof[0], _proof[1]],
+            [[_proof[2], _proof[3]], [_proof[4], _proof[5]]],
+            [_proof[6], _proof[7]],
+            _publicSignals
+        );
     }
  }
