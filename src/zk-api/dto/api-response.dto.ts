@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UsageDto {
-  // H-1 Fix: Quantized cost classes instead of exact values
+  // Fixed: Quantized cost classes instead of exact values
   // This prevents linking requests based on fine-grained token/cost metadata
 
   @ApiProperty({
@@ -49,7 +49,7 @@ export class UsageDto {
   @ApiPropertyOptional({ description: 'Timestamp' })
   timestamp?: Date;
 
-  // REMOVED fields for H-1 fix:
+  // REMOVED fields for privacy:
   // - units: exact token count (linkable)
   // - costUSD: exact cost (linkable)
   // - breakdown: input/output token breakdown (linkable)

@@ -18,7 +18,7 @@
     along with snarkJS. If not, see <https://www.gnu.org/licenses/>.
 */
 
-pragma solidity 0.8.35;
+pragma solidity >=0.7.0 <0.9.0;
 
 contract WithdrawalVerifier {
     // Scalar field size
@@ -64,6 +64,9 @@ contract WithdrawalVerifier {
     uint256 constant IC6x = 7494390732697647122729386726070511963040248458741462977580203308873626540109;
     uint256 constant IC6y = 4115765121358477476143188508159528015308336211466033635284924027399967628587;
     
+    uint256 constant IC7x = 13011355100921154759411239559160002957756476895366755748538891479572766195817;
+    uint256 constant IC7y = 16337852983184260961056817290999894138686797073631436948464932916666266365298;
+    
  
     // Memory data
     uint16 constant pVk = 0;
@@ -71,7 +74,7 @@ contract WithdrawalVerifier {
 
     uint16 constant pLastMem = 896;
 
-    function verifyProof(uint[2] memory _pA, uint[2][2] memory _pB, uint[2] memory _pC, uint[6] memory _pubSignals) public view returns (bool) {
+    function verifyProof(uint[2] calldata _pA, uint[2][2] calldata _pB, uint[2] calldata _pC, uint[7] calldata _pubSignals) public view returns (bool) {
         assembly {
             function checkField(v) {
                 if iszero(lt(v, r)) {
@@ -126,6 +129,8 @@ contract WithdrawalVerifier {
                 g1_mulAccC(_pVk, IC5x, IC5y, calldataload(add(pubSignals, 128)))
                 
                 g1_mulAccC(_pVk, IC6x, IC6y, calldataload(add(pubSignals, 160)))
+                
+                g1_mulAccC(_pVk, IC7x, IC7y, calldataload(add(pubSignals, 192)))
                 
 
                 // -A
@@ -192,6 +197,8 @@ contract WithdrawalVerifier {
             
             checkField(calldataload(add(_pubSignals, 160)))
             
+            checkField(calldataload(add(_pubSignals, 192)))
+            
 
             // Validate all evaluations
             let isValid := checkPairing(_pA, _pB, _pC, _pubSignals, pMem)
@@ -201,23 +208,16 @@ contract WithdrawalVerifier {
          }
      }
 
-    /// @notice Verify proof with simplified interface
-    /// @param _proof Flat proof array [pA.x, pA.y, pB.x[0], pB.x[1], pB.y[0], pB.y[1], pC.x, pC.y]
-    /// @param _publicSignals Public signals array (6 elements)
-    /// @return True if the proof is valid
+    /// @notice Wrapper function for ZkApiCredits contract compatibility
     function verifyWithdrawalProof(
         uint256[8] calldata _proof,
-        uint256[6] calldata _publicSignals
-    ) public view returns (bool) {
-        uint[2] memory pA = [_proof[0], _proof[1]];
-        uint[2][2] memory pB = [[_proof[2], _proof[3]], [_proof[4], _proof[5]]];
-        uint[2] memory pC = [_proof[6], _proof[7]];
-
-        uint[6] memory pubSignals;
-        for (uint i = 0; i < 6; i++) {
-            pubSignals[i] = _publicSignals[i];
-        }
-
-        return verifyProof(pA, pB, pC, pubSignals);
+        uint256[7] calldata _publicSignals
+    ) external view returns (bool) {
+        return this.verifyProof(
+            [_proof[0], _proof[1]],
+            [[_proof[2], _proof[3]], [_proof[4], _proof[5]]],
+            [_proof[6], _proof[7]],
+            _publicSignals
+        );
     }
-}
+ }

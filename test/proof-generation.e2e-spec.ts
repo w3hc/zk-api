@@ -197,12 +197,14 @@ describe('Proof Generation Integration (e2e)', () => {
 
   describe('Refund Redemption Proof Generation (e2e)', () => {
     it('should generate refund proof via API endpoint', async () => {
+      const recipient = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'; // Test recipient
       const response = await request(app.getHttpServer())
         .post('/zk-api/proofs/refund')
         .send({
           secretKey: `0x${secretKey.toString(16)}`,
           ticketIndex: `0x${ticketIndex.toString(16)}`,
           signalX: `0x${signalX.toString(16)}`,
+          recipient, // include recipient
         })
         .expect(200);
 
@@ -217,10 +219,10 @@ describe('Proof Generation Integration (e2e)', () => {
       expect(Array.isArray(body.proof)).toBe(true);
       expect(body.proof).toHaveLength(8);
 
-      // Verify publicSignals format - refund_redemption.circom has 7 public signals
-      // [signalX, refundValueClaimed, serverPublicKeyX, serverPublicKeyY, nullifier, signalY, idCommitment]
+      // Verify publicSignals format - refund_redemption.circom has 8 public signals (front-running protection fix)
+      // [signalX, refundValueClaimed, serverPublicKeyX, serverPublicKeyY, recipient, nullifier, signalY, idCommitment]
       expect(Array.isArray(body.publicSignals)).toBe(true);
-      expect(body.publicSignals.length).toBeGreaterThan(0);
+      expect(body.publicSignals).toHaveLength(8);
 
       // Verify metadata includes nullifier for redemption tracking
       expect(body.metadata).toHaveProperty('nullifier');
@@ -266,6 +268,7 @@ describe('Proof Generation Integration (e2e)', () => {
       });
 
       const serverPublicKey = await refundSignerService.getPublicKey();
+      const recipient = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'; // Test recipient
 
       // Generate proof with proper parameters
       const { proof, publicSignals } =
@@ -277,14 +280,16 @@ describe('Proof Generation Integration (e2e)', () => {
           refundTimestamp,
           refundSignature: refundTicket.signature,
           serverPublicKey,
+          recipient, // include recipient
         });
 
       // Verify proof structure
       expect(Array.isArray(proof)).toBe(true);
       expect(proof).toHaveLength(8);
 
-      // Verify public signals structure - refund_redemption.circom has 7 public signals
+      // Verify public signals structure - refund_redemption.circom has 8 public signals (front-running protection fix)
       expect(Array.isArray(publicSignals)).toBe(true);
+      expect(publicSignals).toHaveLength(8);
       expect(publicSignals.length).toBeGreaterThan(0);
     });
   });

@@ -1,5 +1,5 @@
 /**
- * Response padding utility for H-1: Response metadata linkability
+ * Response padding utility for Privacy fix: Response metadata linkability
  *
  * Implements output padding to prevent response size from being used
  * to correlate requests. Pads response content to predefined size buckets.

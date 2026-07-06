@@ -65,6 +65,14 @@ export class GenerateRefundProofDto {
   signalX!: string;
 
   @ApiProperty({
+    description: 'Recipient Ethereum address (for front-running protection)',
+    example: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+  })
+  @IsString()
+  @IsNotEmpty()
+  recipient!: string;
+
+  @ApiProperty({
     description: 'Identity commitment (optional, for validation)',
     example: '0x...',
     required: false,

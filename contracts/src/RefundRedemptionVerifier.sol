@@ -18,7 +18,7 @@
     along with snarkJS. If not, see <https://www.gnu.org/licenses/>.
 */
 
-pragma solidity 0.8.35;
+pragma solidity >=0.7.0 <0.9.0;
 
 contract RefundRedemptionVerifier {
     // Scalar field size
@@ -67,6 +67,9 @@ contract RefundRedemptionVerifier {
     uint256 constant IC7x = 10989519681647595170027809780598633823614135903414741645960536019010097285317;
     uint256 constant IC7y = 3491771393873122806936581025512303442406333987671969416276399483502869090016;
     
+    uint256 constant IC8x = 6576233399480999100110235666102476185297455681898560273840508280087764728796;
+    uint256 constant IC8y = 10527463297527612194277361173967770107679676722076527141260541726850009052739;
+    
  
     // Memory data
     uint16 constant pVk = 0;
@@ -74,7 +77,7 @@ contract RefundRedemptionVerifier {
 
     uint16 constant pLastMem = 896;
 
-    function verifyProof(uint[2] memory _pA, uint[2][2] memory _pB, uint[2] memory _pC, uint[7] memory _pubSignals) public view returns (bool) {
+    function verifyProof(uint[2] calldata _pA, uint[2][2] calldata _pB, uint[2] calldata _pC, uint[8] calldata _pubSignals) public view returns (bool) {
         assembly {
             function checkField(v) {
                 if iszero(lt(v, r)) {
@@ -131,6 +134,8 @@ contract RefundRedemptionVerifier {
                 g1_mulAccC(_pVk, IC6x, IC6y, calldataload(add(pubSignals, 160)))
                 
                 g1_mulAccC(_pVk, IC7x, IC7y, calldataload(add(pubSignals, 192)))
+                
+                g1_mulAccC(_pVk, IC8x, IC8y, calldataload(add(pubSignals, 224)))
                 
 
                 // -A
@@ -199,6 +204,8 @@ contract RefundRedemptionVerifier {
             
             checkField(calldataload(add(_pubSignals, 192)))
             
+            checkField(calldataload(add(_pubSignals, 224)))
+            
 
             // Validate all evaluations
             let isValid := checkPairing(_pA, _pB, _pC, _pubSignals, pMem)
@@ -208,23 +215,16 @@ contract RefundRedemptionVerifier {
          }
      }
 
-    /// @notice Verify proof with simplified interface
-    /// @param _proof Flat proof array [pA.x, pA.y, pB.x[0], pB.x[1], pB.y[0], pB.y[1], pC.x, pC.y]
-    /// @param _publicSignals Public signals array (7 elements)
-    /// @return True if the proof is valid
+    /// @notice Wrapper function for ZkApiCredits contract compatibility
     function verifyRefundProof(
         uint256[8] calldata _proof,
-        uint256[7] calldata _publicSignals
-    ) public view returns (bool) {
-        uint[2] memory pA = [_proof[0], _proof[1]];
-        uint[2][2] memory pB = [[_proof[2], _proof[3]], [_proof[4], _proof[5]]];
-        uint[2] memory pC = [_proof[6], _proof[7]];
-
-        uint[7] memory pubSignals;
-        for (uint i = 0; i < 7; i++) {
-            pubSignals[i] = _publicSignals[i];
-        }
-
-        return verifyProof(pA, pB, pC, pubSignals);
+        uint256[8] calldata _publicSignals
+    ) external view returns (bool) {
+        return this.verifyProof(
+            [_proof[0], _proof[1]],
+            [[_proof[2], _proof[3]], [_proof[4], _proof[5]]],
+            [_proof[6], _proof[7]],
+            _publicSignals
+        );
     }
-}
+ }
