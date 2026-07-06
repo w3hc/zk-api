@@ -17,8 +17,8 @@ Proves the right to withdraw funds without revealing the secret key.
 
 **Parameters**:
 - Merkle tree depth: 20 (supports ~1M users)
-- Constraints: 11,749
-- Public inputs: `signalX`, `merkleRootExpected`
+- Constraints: ~5,596
+- Public inputs: `signalX`, `merkleRootExpected`, `recipient` (front-running protection)
 - Outputs: `nullifier`, `signalY`, `idCommitment`, `merkleRoot`
 
 ### 2. **Refund Redemption Circuit** ([refund_redemption.circom](refund_redemption.circom))
@@ -32,8 +32,8 @@ Proves the validity of server-signed refund tickets without revealing ticket det
 - Refund value matches claimed amount
 
 **Parameters**:
-- Constraints: 11,156
-- Public inputs: `signalX`, `refundValueClaimed`
+- Constraints: ~8,355
+- Public inputs: `signalX`, `refundValueClaimed`, `serverPublicKeyX`, `serverPublicKeyY`, `recipient` (front-running protection)
 - Outputs: `nullifier`, `signalY`, `idCommitment`
 
 ### 3. **Double-Spend Slashing Circuit** ([double_spend_slashing.circom](double_spend_slashing.circom))
