@@ -75,6 +75,7 @@ contracts/cache/
 contracts/out/
 contracts/broadcast/
 contracts/lib/
+contracts/lcov.info
 
 # Notes
 docs/notes/

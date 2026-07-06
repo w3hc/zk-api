@@ -589,4 +589,211 @@ contract ZkApiCreditsTest is Test {
         zkApi.slashPolicyViolation(nullifier, idCommitment1, proof, publicSignals);
         vm.stopPrank();
     }
+
+    // ============ Refund Redemption Tests ============
+
+    function test_RedeemRefund_Success() public {
+        uint256 depositAmount = 0.01 ether;
+
+        // User deposits
+        vm.prank(user1);
+        zkApi.deposit{value: depositAmount}(idCommitment1);
+
+        // Give the zkApi contract some eth to pay refunds
+        vm.deal(address(zkApi), 1 ether);
+
+        // Create refund parameters
+        bytes32 refundNullifier = keccak256('refund_nullifier');
+        uint256 refundAmount = 0.002 ether;
+        address payable recipient = payable(makeAddr('recipient'));
+
+        // Mock ZK proof (non-zero to pass mock verifier)
+        uint256[8] memory proof;
+        proof[0] = 1;
+
+        // Public signals: [signalX (input), refundValueClaimed (input), serverPublicKeyX (input), serverPublicKeyY (input), nullifier (output), signalY (output), idCommitment (output)]
+        (bytes32 serverPubKeyX, bytes32 serverPubKeyY) = zkApi.serverPublicKey();
+        uint256[7] memory publicSignals;
+        publicSignals[0] = 0; // signalX
+        publicSignals[1] = refundAmount; // refundValueClaimed
+        publicSignals[2] = uint256(serverPubKeyX); // serverPublicKeyX
+        publicSignals[3] = uint256(serverPubKeyY); // serverPublicKeyY
+        publicSignals[4] = uint256(refundNullifier); // nullifier output
+        publicSignals[5] = 0; // signalY output
+        publicSignals[6] = uint256(idCommitment1); // idCommitment output
+
+        uint256 balanceBefore = recipient.balance;
+
+        // Redeem refund
+        vm.prank(user1);
+        zkApi.redeemRefund(
+            idCommitment1,
+            refundNullifier,
+            refundAmount,
+            recipient,
+            proof,
+            publicSignals
+        );
+
+        // Verify refund was sent
+        assertEq(recipient.balance, balanceBefore + refundAmount);
+        assertTrue(zkApi.redeemedRefunds(refundNullifier));
+
+        // Verify deposit still active
+        ZkApiCredits.Deposit memory dep = zkApi.getDeposit(idCommitment1);
+        assertTrue(dep.active);
+    }
+
+    function test_RedeemRefund_AlreadyRedeemed() public {
+        // User deposits
+        vm.prank(user1);
+        zkApi.deposit{value: 0.01 ether}(idCommitment1);
+
+        // Give the zkApi contract some eth
+        vm.deal(address(zkApi), 1 ether);
+
+        // Create refund parameters
+        bytes32 refundNullifier = keccak256('refund_nullifier');
+        uint256 refundAmount = 0.002 ether;
+        address payable recipient = payable(makeAddr('recipient'));
+
+        // Mock ZK proof
+        uint256[8] memory proof;
+        proof[0] = 1;
+
+        (bytes32 serverPubKeyX, bytes32 serverPubKeyY) = zkApi.serverPublicKey();
+        uint256[7] memory publicSignals;
+        publicSignals[0] = 0; // signalX
+        publicSignals[1] = refundAmount; // refundValueClaimed
+        publicSignals[2] = uint256(serverPubKeyX); // serverPublicKeyX
+        publicSignals[3] = uint256(serverPubKeyY); // serverPublicKeyY
+        publicSignals[4] = uint256(refundNullifier); // nullifier output
+        publicSignals[5] = 0; // signalY output
+        publicSignals[6] = uint256(idCommitment1); // idCommitment output
+
+        // First redemption succeeds
+        vm.prank(user1);
+        zkApi.redeemRefund(
+            idCommitment1,
+            refundNullifier,
+            refundAmount,
+            recipient,
+            proof,
+            publicSignals
+        );
+
+        // Second redemption with same nullifier fails
+        vm.prank(user1);
+        vm.expectRevert(ZkApiCredits.RefundAlreadyRedeemed.selector);
+        zkApi.redeemRefund(
+            idCommitment1,
+            refundNullifier,
+            refundAmount,
+            recipient,
+            proof,
+            publicSignals
+        );
+    }
+
+    function test_RedeemRefund_InvalidProof() public {
+        // User deposits
+        vm.prank(user1);
+        zkApi.deposit{value: 0.01 ether}(idCommitment1);
+
+        bytes32 refundNullifier = keccak256('refund_nullifier');
+        uint256 refundAmount = 0.002 ether;
+        address payable recipient = payable(makeAddr('recipient'));
+
+        // Invalid proof (all zeros)
+        uint256[8] memory proof;
+
+        (bytes32 serverPubKeyX, bytes32 serverPubKeyY) = zkApi.serverPublicKey();
+        uint256[7] memory publicSignals;
+        publicSignals[0] = 0; // signalX
+        publicSignals[1] = refundAmount; // refundValueClaimed
+        publicSignals[2] = uint256(serverPubKeyX); // serverPublicKeyX
+        publicSignals[3] = uint256(serverPubKeyY); // serverPublicKeyY
+        publicSignals[4] = uint256(refundNullifier); // nullifier output
+        publicSignals[5] = 0; // signalY output
+        publicSignals[6] = uint256(idCommitment1); // idCommitment output
+
+        vm.prank(user1);
+        vm.expectRevert(ZkApiCredits.InvalidProof.selector);
+        zkApi.redeemRefund(
+            idCommitment1,
+            refundNullifier,
+            refundAmount,
+            recipient,
+            proof,
+            publicSignals
+        );
+    }
+
+    function test_RedeemRefund_DepositNotFound() public {
+        bytes32 refundNullifier = keccak256('refund_nullifier');
+        uint256 refundAmount = 0.002 ether;
+        address payable recipient = payable(makeAddr('recipient'));
+
+        uint256[8] memory proof;
+        proof[0] = 1;
+
+        (bytes32 serverPubKeyX, bytes32 serverPubKeyY) = zkApi.serverPublicKey();
+        uint256[7] memory publicSignals;
+        publicSignals[0] = 0; // signalX
+        publicSignals[1] = refundAmount; // refundValueClaimed
+        publicSignals[2] = uint256(serverPubKeyX); // serverPublicKeyX
+        publicSignals[3] = uint256(serverPubKeyY); // serverPublicKeyY
+        publicSignals[4] = uint256(refundNullifier); // nullifier output
+        publicSignals[5] = 0; // signalY output
+        publicSignals[6] = uint256(idCommitment1); // idCommitment output
+
+        vm.expectRevert(ZkApiCredits.DepositNotFound.selector);
+        zkApi.redeemRefund(
+            idCommitment1,
+            refundNullifier,
+            refundAmount,
+            recipient,
+            proof,
+            publicSignals
+        );
+    }
+
+    // ============ Additional Admin Tests ============
+
+    // ============ Pause Edge Cases ============
+
+    function test_Deposit_WhenPaused() public {
+        zkApi.pause();
+
+        vm.prank(user1);
+        vm.expectRevert();
+        zkApi.deposit{value: 0.01 ether}(idCommitment1);
+    }
+
+    function test_Withdraw_WhenNotPaused() public {
+        // Deposit while not paused
+        vm.prank(user1);
+        zkApi.deposit{value: 0.01 ether}(idCommitment1);
+
+        // Note: withdraw doesn't have whenNotPaused modifier
+        // so it should work even if contract is paused
+        zkApi.pause();
+
+        address payable recipient = payable(makeAddr('recipient'));
+        uint256[8] memory proof = _generateMockProof();
+        uint256[6] memory publicSignals = [
+            0,
+            uint256(zkApi.merkleRoot()),
+            0,
+            0,
+            uint256(idCommitment1),
+            uint256(zkApi.merkleRoot())
+        ];
+
+        // This should succeed even when paused
+        vm.prank(user1);
+        zkApi.withdraw(idCommitment1, recipient, proof, publicSignals);
+
+        assertEq(recipient.balance, 0.01 ether);
+    }
 }
