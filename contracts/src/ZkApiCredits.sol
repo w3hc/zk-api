@@ -762,23 +762,21 @@ contract ZkApiCredits is ReentrancyGuard, Pausable, Ownable {
     }
 
     /**
-     * @notice Verify EdDSA signature on refund ticket
-     * @dev TEMPORARY: Full EdDSA verification requires >30M gas (2 scalar muls on Baby Jubjub)
-     * @dev For production, use one of these solutions:
-     *      1. ZK proof of EdDSA signature verification (verify signature in circuit)
-     *      2. Optimized precompiles or assembly implementations
-     *      3. BLS signatures with BLS12-381 precompiles (EIP-2537)
-     *      4. Signature aggregation to verify multiple refunds at once
+     * @notice DEAD CODE - This function is no longer used
+     * @dev The system now uses ZK proofs (refund_redemption.circom) which verify EdDSA
+     *      signatures inside the circuit, solving the gas cost problem.
      *
-     * @dev Current implementation does basic validation:
-     *      - Signature components are in valid range
-     *      - Points are on the Baby Jubjub curve
-     *      - Relies on economic incentives: Invalid signatures would be reported by users
-     *        who can prove fraud and slash the server's stake
+     * @dev HISTORICAL CONTEXT: This was a temporary stub that returned `true` after basic
+     *      validation because full EdDSA verification requires >30M gas (2 scalar muls on
+     *      Baby Jubjub), exceeding block gas limits.
+     *
+     * @dev The current redeemRefund() function uses proof-based verification where the
+     *      EdDSA signature check happens in the circuit, not on-chain. This function is
+     *      kept for reference only and should be removed in a future cleanup.
      *
      * @param _message Message hash (Poseidon hash of refund data)
      * @param _signature EdDSA signature (R8x, R8y, S)
-     * @return True if signature passes basic validation
+     * @return True if signature passes basic validation (stub always returns true)
      */
     function _verifyEdDSASignature(
         bytes32 _message,

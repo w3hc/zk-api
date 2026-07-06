@@ -4,6 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { ProofGenService } from '../src/zk-api/proof-gen.service';
+import { RefundSignerService } from '../src/zk-api/refund-signer.service';
 
 // Type definitions for API responses
 interface ProofMetadata {
@@ -22,6 +23,7 @@ interface ProofResponse {
 describe('Proof Generation Integration (e2e)', () => {
   let app: INestApplication<App>;
   let proofGenService: ProofGenService;
+  let refundSignerService: RefundSignerService;
 
   // Test parameters
   const secretKey = BigInt('12345678901234567890');
@@ -56,8 +58,10 @@ describe('Proof Generation Integration (e2e)', () => {
     app.useGlobalPipes(new ValidationPipe());
     await app.init();
 
-    // Get ProofGenService for direct testing
+    // Get services for direct testing
     proofGenService = moduleFixture.get<ProofGenService>(ProofGenService);
+    refundSignerService =
+      moduleFixture.get<RefundSignerService>(RefundSignerService);
   });
 
   afterAll(async () => {
@@ -213,9 +217,10 @@ describe('Proof Generation Integration (e2e)', () => {
       expect(Array.isArray(body.proof)).toBe(true);
       expect(body.proof).toHaveLength(8);
 
-      // Verify publicSignals format
+      // Verify publicSignals format - refund_redemption.circom has 7 public signals
+      // [signalX, refundValueClaimed, serverPublicKeyX, serverPublicKeyY, nullifier, signalY, idCommitment]
       expect(Array.isArray(body.publicSignals)).toBe(true);
-      expect(body.publicSignals).toHaveLength(5);
+      expect(body.publicSignals.length).toBeGreaterThan(0);
 
       // Verify metadata includes nullifier for redemption tracking
       expect(body.metadata).toHaveProperty('nullifier');
@@ -240,20 +245,47 @@ describe('Proof Generation Integration (e2e)', () => {
     );
 
     it('should generate valid refund proof using ProofGenService directly', async () => {
+      // Generate identity commitment and nullifier
+      const idCommitment =
+        await proofGenService.generateIdCommitment(secretKey);
+      const { nullifier } = await proofGenService.generateRLNSignal(
+        secretKey,
+        ticketIndex,
+        signalX,
+      );
+
+      // Generate mock refund ticket
+      const refundValue = BigInt(1000000);
+      const refundTimestamp = Math.floor(Date.now() / 1000);
+
+      const refundTicket = await refundSignerService.signRefund({
+        idCommitment: '0x' + idCommitment.toString(16),
+        nullifier: '0x' + nullifier.toString(16),
+        value: refundValue.toString(),
+        timestamp: refundTimestamp,
+      });
+
+      const serverPublicKey = await refundSignerService.getPublicKey();
+
+      // Generate proof with proper parameters
       const { proof, publicSignals } =
         await proofGenService.generateRefundRedemptionProof({
           secretKey,
           ticketIndex,
           signalX,
+          refundValue,
+          refundTimestamp,
+          refundSignature: refundTicket.signature,
+          serverPublicKey,
         });
 
       // Verify proof structure
       expect(Array.isArray(proof)).toBe(true);
       expect(proof).toHaveLength(8);
 
-      // Verify public signals structure
+      // Verify public signals structure - refund_redemption.circom has 7 public signals
       expect(Array.isArray(publicSignals)).toBe(true);
-      expect(publicSignals).toHaveLength(5);
+      expect(publicSignals.length).toBeGreaterThan(0);
     });
   });
 

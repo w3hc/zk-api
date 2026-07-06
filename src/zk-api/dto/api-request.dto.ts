@@ -4,6 +4,7 @@ import {
   IsObject,
   ValidateNested,
   IsOptional,
+  IsArray,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -120,21 +121,35 @@ export class RedeemRefundRequestDto {
   @IsNotEmpty()
   value: string;
 
-  @ApiProperty({ description: 'Timestamp when refund was issued' })
-  @IsNotEmpty()
-  timestamp: number;
-
-  @ApiProperty({
-    description: 'Server EdDSA signature on refund ticket',
-    type: RefundSignatureDto,
-  })
-  @IsObject()
-  @ValidateNested()
-  @Type(() => RefundSignatureDto)
-  signature: RefundSignatureDto;
-
   @ApiProperty({ description: 'Recipient address for the refund' })
   @IsString()
   @IsNotEmpty()
   recipient: string;
+
+  @ApiProperty({
+    description: 'Groth16 ZK proof (array of 8 hex strings)',
+    type: [String],
+    example: [
+      '0x...',
+      '0x...',
+      '0x...',
+      '0x...',
+      '0x...',
+      '0x...',
+      '0x...',
+      '0x...',
+    ],
+  })
+  @IsArray()
+  @IsString({ each: true })
+  proof: string[];
+
+  @ApiProperty({
+    description: 'Public signals for the proof (array of 7 hex strings)',
+    type: [String],
+    example: ['0x...', '0x...', '0x...', '0x...', '0x...', '0x...', '0x...'],
+  })
+  @IsArray()
+  @IsString({ each: true })
+  publicSignals: string[];
 }

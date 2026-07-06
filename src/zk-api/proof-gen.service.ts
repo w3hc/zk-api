@@ -336,16 +336,27 @@ export class ProofGenService {
 
   /**
    * Generate refund redemption proof using Groth16
-   * @param params Refund parameters
+   * @param params Refund parameters including EdDSA signature from server
    * @returns Proof formatted for contract submission
    */
   async generateRefundRedemptionProof(params: {
     secretKey: bigint;
     ticketIndex: bigint;
     signalX: bigint;
+    refundValue: bigint;
+    refundTimestamp: number;
+    refundSignature: {
+      R8x: string;
+      R8y: string;
+      S: string;
+    };
+    serverPublicKey: {
+      x: string;
+      y: string;
+    };
   }): Promise<{
     proof: number[];
-    publicSignals: number[];
+    publicSignals: bigint[];
   }> {
     await this.initialize();
 
@@ -362,21 +373,28 @@ export class ProofGenService {
       params.signalX,
     );
 
-    // Prepare circuit inputs (using same circuit for now)
+    // Prepare circuit inputs for refund_redemption.circom
     const inputs = {
       secretKey: params.secretKey.toString(),
       ticketIndex: params.ticketIndex.toString(),
+      refundValue: params.refundValue.toString(),
+      refundTimestamp: params.refundTimestamp.toString(),
+      refundSignatureR8x: BigInt(params.refundSignature.R8x).toString(),
+      refundSignatureR8y: BigInt(params.refundSignature.R8y).toString(),
+      refundSignatureS: BigInt(params.refundSignature.S).toString(),
       signalX: params.signalX.toString(),
-      idCommitmentExpected: idCommitment.toString(),
+      refundValueClaimed: params.refundValue.toString(),
+      serverPublicKeyX: BigInt(params.serverPublicKey.x).toString(),
+      serverPublicKeyY: BigInt(params.serverPublicKey.y).toString(),
     };
 
     const wasmPath = path.join(
       process.cwd(),
-      'circuits/build/api_credit_proof_test_js/api_credit_proof_test.wasm',
+      'circuits/build/refund_redemption_js/refund_redemption.wasm',
     );
     const zkeyPath = path.join(
       process.cwd(),
-      'circuits/build/api_credit_proof_test.zkey',
+      'circuits/build/refund_redemption.zkey',
     );
 
     // Check if files exist
@@ -387,9 +405,10 @@ export class ProofGenService {
       throw new Error(`zkey file not found: ${zkeyPath}`);
     }
 
-    this.logger.debug('Generating refund proof with inputs', {
+    this.logger.debug('Generating refund redemption proof with inputs', {
       idCommitment: idCommitment.toString(),
       nullifier: nullifier.toString(),
+      refundValue: params.refundValue.toString(),
     });
 
     // Generate proof
@@ -411,7 +430,7 @@ export class ProofGenService {
       proof.pi_c[1],
     ];
 
-    this.logger.log('Refund proof generated successfully');
+    this.logger.log('Refund redemption proof generated successfully');
 
     return {
       proof: formattedProof,
