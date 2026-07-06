@@ -14,8 +14,8 @@ contract MockRefundVerifier {
      */
     function verifyRefundProof(
         uint[8] calldata proof,
-        uint[7] calldata /* publicSignals */
-    ) public pure returns (bool) {
+        uint[8] calldata /* publicSignals */
+    ) external pure returns (bool) {
         // Simple mock: valid if first proof element is non-zero
         return proof[0] != 0;
     }

@@ -14,8 +14,8 @@ contract MockWithdrawalVerifier {
      */
     function verifyWithdrawalProof(
         uint[8] calldata proof,
-        uint[6] calldata /* publicSignals */
-    ) public pure returns (bool) {
+        uint[7] calldata /* publicSignals */
+    ) external pure returns (bool) {
         // Simple mock: valid if first proof element is non-zero
         // This allows tests to distinguish between valid and invalid proofs
         return proof[0] != 0;
