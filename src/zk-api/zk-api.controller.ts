@@ -160,20 +160,24 @@ export class ZkApiController {
       throw new Error('Refund already redeemed');
     }
 
+    // Convert proof and publicSignals from hex strings to numbers/bigints
+    const proof = request.proof.map((p) => Number(BigInt(p)));
+    const publicSignals = request.publicSignals.map((s) => BigInt(s));
+
     const txHash = await this.blockchainService.redeemRefund({
       idCommitment: request.idCommitment,
       nullifier: request.nullifier,
       refundValue: request.value,
-      timestamp: request.timestamp,
-      signature: request.signature,
       recipient: request.recipient,
+      proof,
+      publicSignals,
     });
 
     // Track the redemption in our local store
     this.nullifierStore.markRefundRedeemed(request.nullifier, {
       idCommitment: request.idCommitment,
       value: request.value,
-      timestamp: request.timestamp,
+      timestamp: Date.now(),
       recipient: request.recipient,
       txHash,
     });
