@@ -204,7 +204,7 @@ describe('Proof Generation Integration (e2e)', () => {
           secretKey: `0x${secretKey.toString(16)}`,
           ticketIndex: `0x${ticketIndex.toString(16)}`,
           signalX: `0x${signalX.toString(16)}`,
-          recipient, // C-2 fix: include recipient
+          recipient, // include recipient
         })
         .expect(200);
 
@@ -219,7 +219,7 @@ describe('Proof Generation Integration (e2e)', () => {
       expect(Array.isArray(body.proof)).toBe(true);
       expect(body.proof).toHaveLength(8);
 
-      // Verify publicSignals format - refund_redemption.circom has 8 public signals (C-2 fix)
+      // Verify publicSignals format - refund_redemption.circom has 8 public signals (front-running protection fix)
       // [signalX, refundValueClaimed, serverPublicKeyX, serverPublicKeyY, recipient, nullifier, signalY, idCommitment]
       expect(Array.isArray(body.publicSignals)).toBe(true);
       expect(body.publicSignals).toHaveLength(8);
@@ -280,14 +280,14 @@ describe('Proof Generation Integration (e2e)', () => {
           refundTimestamp,
           refundSignature: refundTicket.signature,
           serverPublicKey,
-          recipient, // C-2 fix: include recipient
+          recipient, // include recipient
         });
 
       // Verify proof structure
       expect(Array.isArray(proof)).toBe(true);
       expect(proof).toHaveLength(8);
 
-      // Verify public signals structure - refund_redemption.circom has 8 public signals (C-2 fix)
+      // Verify public signals structure - refund_redemption.circom has 8 public signals (front-running protection fix)
       expect(Array.isArray(publicSignals)).toBe(true);
       expect(publicSignals).toHaveLength(8);
       expect(publicSignals.length).toBeGreaterThan(0);

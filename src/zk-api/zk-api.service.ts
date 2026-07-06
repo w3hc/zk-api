@@ -237,10 +237,10 @@ export class ZkApiService {
       `Request processed. Cost: ${actualCost} wei, Refund: ${refundValue} wei`,
     );
 
-    // H-1 Fix: Apply response padding to prevent size-based linkability
+    // Fixed: Apply response padding to prevent size-based linkability
     const paddedResponse = padResponse(response.content);
 
-    // H-1 Fix: Remove internal fields before returning to client
+    // Fixed: Remove internal fields before returning to client
     const sanitizedUsage: UsageDto = {
       unitClass: response.usage.unitClass,
       unitType: response.usage.unitType,
@@ -374,13 +374,13 @@ export class ZkApiService {
       const outputTokens = message.usage.output_tokens;
       const totalTokens = inputTokens + outputTokens;
 
-      // H-1 Fix: Calculate actual cost (internal only)
+      // Fixed: Calculate actual cost (internal only)
       const pricing = CLAUDE_PRICING[model];
       const actualCostUSD =
         (inputTokens / 1_000_000) * pricing.input +
         (outputTokens / 1_000_000) * pricing.output;
 
-      // H-1 Fix: Quantize units and cost
+      // Fixed: Quantize units and cost
       const { unitClass } = quantizeUnits(totalTokens);
       const { costClass } = quantizeCost(actualCostUSD);
 
@@ -423,13 +423,13 @@ export class ZkApiService {
 
     const mockResponse = `This is a mock Claude ${model} response to: "${payload.slice(0, 50)}..."`;
 
-    // H-1 Fix: Calculate actual cost (internal only)
+    // Fixed: Calculate actual cost (internal only)
     const pricing = CLAUDE_PRICING[model];
     const actualCostUSD =
       (inputTokens / 1_000_000) * pricing.input +
       (outputTokens / 1_000_000) * pricing.output;
 
-    // H-1 Fix: Quantize units and cost
+    // Fixed: Quantize units and cost
     const { unitClass } = quantizeUnits(totalTokens);
     const { costClass } = quantizeCost(actualCostUSD);
 

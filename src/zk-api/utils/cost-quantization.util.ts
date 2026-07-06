@@ -1,5 +1,5 @@
 /**
- * Cost quantization utility for H-1: Response metadata linkability
+ * Cost quantization utility for Privacy fix: Response metadata linkability
  *
  * Implements quantized cost classes to prevent fine-grained cost tracking
  * that could be used to link requests based on token usage patterns.

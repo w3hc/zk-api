@@ -354,7 +354,7 @@ export class ProofGenService {
       x: string;
       y: string;
     };
-    recipient: string; // Ethereum address - required for C-2 fix
+    recipient: string; // Ethereum address - required for front-running protection fix
   }): Promise<{
     proof: number[];
     publicSignals: bigint[];
@@ -387,7 +387,7 @@ export class ProofGenService {
       refundValueClaimed: params.refundValue.toString(),
       serverPublicKeyX: BigInt(params.serverPublicKey.x).toString(),
       serverPublicKeyY: BigInt(params.serverPublicKey.y).toString(),
-      recipient: BigInt(params.recipient).toString(), // C-2 fix: bind recipient to proof
+      recipient: BigInt(params.recipient).toString(), // bind recipient to proof
     };
 
     const wasmPath = path.join(
